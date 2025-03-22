@@ -1,5 +1,5 @@
 import { commandRegistry } from './commands.ts';
-import { serviceRegistry } from './services.ts';
+// import { serviceRegistry } from './services.ts'; // Unused import, commented out
 import * as colors from './colors.ts';
 
 const encoder = new TextEncoder();
@@ -108,6 +108,7 @@ export class Shell {
 	 * 2. Display multiple suggestions when there are several matches
 	 * 3. Handle contextual completion based on command structure
 	 * 4. Show all available options for a command when tab is pressed after a command
+	 * 5. Show help for a command when tab is pressed on a command with no space after it
 	 */
 	private handleTabCompletion(): void {
 		const input = this.buffer.trim();
@@ -117,6 +118,31 @@ export class Shell {
 
 		// Handle commands with or without leading slash
 		const commandInput = input.startsWith('/') ? input.substring(1) : input;
+
+		// Check if input is a complete command name with no space after it
+		const isCompleteCommand = !commandInput.includes(' ') && commandRegistry.getCommands().has(commandInput);
+
+		// If this is a complete command with no space, and it has subcommands, show help
+		if (isCompleteCommand) {
+			const command = commandRegistry.getCommands().get(commandInput);
+			if (command?.subcommands && command.subcommands.size > 0) {
+				// Show subcommand help
+				this.write('\n');
+				console.log(colors.formatHelpTitle(`Available subcommands for '${commandInput}':`));
+
+				// Calculate the maximum length for formatting
+				const maxLength = Math.max(...Array.from(command.subcommands.keys()).map((s) => s.length));
+
+				// Show each subcommand with its description
+				for (const [name, subCmd] of command.subcommands) {
+					console.log(`  ${colors.formatHelpCommand(name.padEnd(maxLength + 2))}${colors.formatHelpDescription(subCmd.description)}`);
+				}
+
+				this.showPrompt();
+				this.write(this.buffer);
+				return;
+			}
+		}
 
 		// Get command suggestions from registry
 		const suggestions = commandRegistry.getSuggestions(commandInput);
@@ -217,9 +243,9 @@ export class Shell {
 	 * Display command suggestions with descriptions
 	 *
 	 * @param suggestions - Array of command suggestions to display
-	 * @param commandInput - The current command input
+	 * @param _commandInput - The current command input (unused)
 	 */
-	private displaySuggestions(suggestions: string[], commandInput: string): void {
+	private displaySuggestions(suggestions: string[], _commandInput: string): void {
 		// Check if these are subcommand suggestions
 		const isSubcommandSuggestion = suggestions[0].includes(' ');
 
@@ -227,8 +253,8 @@ export class Shell {
 			// These are subcommand suggestions, show them with descriptions
 			console.log(colors.formatHelpTitle('Available options:'));
 
-			// Get the root command
-			const rootCommand = suggestions[0].split(' ')[0];
+			// Get the root command (unused but kept for clarity)
+			const _rootCommand = suggestions[0].split(' ')[0];
 
 			// Calculate the maximum length for formatting
 			const maxLength = Math.max(...suggestions.map((s) => s.length));
@@ -395,8 +421,9 @@ export class Shell {
 		// Configure terminal
 		try {
 			await Deno.stdin.setRaw(true);
-		} catch (error) {
-			console.error(colors.formatError('Terminal Error', `Failed to set raw mode: ${error.message}`));
+		} catch (error: unknown) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			console.error(colors.formatError('Terminal Error', `Failed to set raw mode: ${errorMessage}`));
 			return;
 		}
 
