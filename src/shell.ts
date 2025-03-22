@@ -101,24 +101,25 @@ export class Shell {
 
 	/**
 	 * Handle tab completion
-	 * 
+	 *
 	 * Processes tab key presses to:
 	 * 1. Auto-complete partial commands when there's a single match
 	 * 2. Display multiple suggestions when there are several matches
 	 * 3. Handle contextual completion based on command structure
+	 * 4. Show all available options for a command when tab is pressed after a command
 	 */
 	private handleTabCompletion(): void {
 		const input = this.buffer.trim();
-		
+
 		// Skip tab completion if buffer is empty
 		if (!input) return;
-		
+
 		// Handle commands with or without leading slash
 		const commandInput = input.startsWith('/') ? input.substring(1) : input;
-		
-			// Get command suggestions from registry
+
+		// Get command suggestions from registry
 		const suggestions = commandRegistry.getSuggestions(commandInput);
-		
+
 		if (suggestions.length === 0) {
 			// No matches found, do nothing
 			return;
@@ -129,45 +130,45 @@ export class Shell {
 		} else if (suggestions.length > 1) {
 			// Multiple matches - show suggestions
 			this.write('\n');
-			
+
 			// Find common prefix for partial completion
 			const commonPrefix = this.findCommonPrefix(suggestions);
-			
-			// Display all suggestions in a formatted table-like layout
-			console.log('Available completions:');
-			
-			// Calculate the maximum length for formatting
-			const maxLength = Math.max(...suggestions.map(s => s.length));
-			const columns = Math.floor(80 / (maxLength + 4)); // Assume 80 column terminal width
-			let row = [];
-			
-			for (let i = 0; i < suggestions.length; i++) {
-				row.push(suggestions[i].padEnd(maxLength + 2));
-				
-				if (row.length === columns || i === suggestions.length - 1) {
-					console.log('  ' + row.join(''));
-					row = [];
-				}
-			}
-			
+
+			// Display all suggestions in a formatted table-like layout with descriptions
+			this.displaySuggestions(suggestions, commandInput);
+
 			// If there's a common prefix longer than current input, use it
 			const currentCommandPart = commandInput.split(/\s+/).pop() || '';
-			
+
 			// Determine if we're completing a subcommand (command that contains spaces)
 			const isSubcommandCompletion = commandInput.includes(' ');
-			
+
 			if (isSubcommandCompletion) {
 				// Handle contextual completion for subcommands
 				const parts = commandInput.split(/\s+/);
 				const rootCommand = parts[0];
-				
+				const subcommandPartial = parts.length > 1 ? parts[parts.length - 1] : '';
+
+				// Extract the base command (everything before the last part being completed)
+				const baseCommand = parts.slice(0, parts.length - 1).join(' ');
+
 				// If commonPrefix is longer than current input part, update it
-				if (commonPrefix.length > currentCommandPart.length) {
-					// Create the new command by replacing the last part
-					parts[parts.length - 1] = commonPrefix;
-					const newCommand = parts.join(' ');
+				if (commonPrefix.length > subcommandPartial.length) {
+					// Extract just the subcommand part from the common prefix by removing the root command
+					const subcommandPrefix = commonPrefix.substring(commonPrefix.indexOf(' ') + 1);
+
+					// Create a properly formatted command without duplication
+					let newCommand;
+					if (baseCommand && subcommandPrefix.startsWith(baseCommand)) {
+						// If the subcommand already includes the base command, use it directly
+						newCommand = subcommandPrefix;
+					} else {
+						// Otherwise, combine them properly
+						newCommand = baseCommand ? `${baseCommand} ${subcommandPrefix}` : subcommandPrefix;
+					}
+
 					const prefixWithSlash = input.startsWith('/') ? `/${newCommand}` : newCommand;
-					
+
 					this.showPrompt();
 					this.updateBuffer(prefixWithSlash);
 					return;
@@ -175,30 +176,30 @@ export class Shell {
 			} else if (commonPrefix.length > commandInput.length) {
 				// For regular commands, update with common prefix if it's longer
 				const prefixToUse = input.startsWith('/') ? `/${commonPrefix}` : commonPrefix;
-				
+
 				this.showPrompt();
 				this.updateBuffer(prefixToUse);
 				return;
 			}
-			
+
 			// Just show prompt with current buffer
 			this.showPrompt();
 			this.write(this.buffer);
 		}
 	}
-	
+
 	/**
 	 * Find the longest common prefix among an array of strings
-	 * 
+	 *
 	 * @param strings - Array of strings to find common prefix from
 	 * @returns The longest common prefix
 	 */
 	private findCommonPrefix(strings: string[]): string {
 		if (strings.length === 0) return '';
 		if (strings.length === 1) return strings[0];
-		
+
 		let prefix = strings[0];
-		
+
 		for (let i = 1; i < strings.length; i++) {
 			let j = 0;
 			while (j < prefix.length && j < strings[i].length && prefix[j] === strings[i][j]) {
@@ -207,8 +208,63 @@ export class Shell {
 			prefix = prefix.substring(0, j);
 			if (prefix === '') break;
 		}
-		
+
 		return prefix;
+	}
+
+	/**
+	 * Display command suggestions with descriptions
+	 *
+	 * @param suggestions - Array of command suggestions to display
+	 * @param commandInput - The current command input
+	 */
+	private displaySuggestions(suggestions: string[], commandInput: string): void {
+		// Check if these are subcommand suggestions
+		const isSubcommandSuggestion = suggestions[0].includes(' ');
+
+		if (isSubcommandSuggestion) {
+			// These are subcommand suggestions, show them with descriptions
+			console.log('Available options:');
+
+			// Get the root command
+			const rootCommand = suggestions[0].split(' ')[0];
+
+			// Calculate the maximum length for formatting
+			const maxLength = Math.max(...suggestions.map((s) => s.length));
+
+			// Show each suggestion with its description
+			for (const suggestion of suggestions) {
+				const description = commandRegistry.getSubcommandDescription(suggestion);
+				console.log(`  ${suggestion.padEnd(maxLength + 2)}${description ? description : ''}`);
+			}
+		} else {
+			// These are basic command suggestions
+			console.log('Available commands:');
+
+			// Calculate the maximum length for formatting
+			const maxLength = Math.max(...suggestions.map((s) => s.length));
+			const columns = Math.floor(80 / (maxLength + 4)); // Assume 80 column terminal width
+
+			// If there are many suggestions, show in columns without descriptions
+			if (suggestions.length > 6) {
+				let row = [];
+
+				for (let i = 0; i < suggestions.length; i++) {
+					row.push(suggestions[i].padEnd(maxLength + 2));
+
+					if (row.length === columns || i === suggestions.length - 1) {
+						console.log('  ' + row.join(''));
+						row = [];
+					}
+				}
+			} else {
+				// For fewer suggestions, show with descriptions
+				for (const cmd of suggestions) {
+					const description = commandRegistry.getDescription(cmd);
+					console.log(`  ${cmd.padEnd(maxLength + 2)}${description ? description : ''}`);
+				}
+			}
+		}
 	}
 
 	/**
