@@ -1,5 +1,6 @@
 import { commandRegistry } from './commands.ts';
 import { serviceRegistry } from './services.ts';
+import * as colors from './colors.ts';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -224,7 +225,7 @@ export class Shell {
 
 		if (isSubcommandSuggestion) {
 			// These are subcommand suggestions, show them with descriptions
-			console.log('Available options:');
+			console.log(colors.formatHelpTitle('Available options:'));
 
 			// Get the root command
 			const rootCommand = suggestions[0].split(' ')[0];
@@ -235,11 +236,11 @@ export class Shell {
 			// Show each suggestion with its description
 			for (const suggestion of suggestions) {
 				const description = commandRegistry.getSubcommandDescription(suggestion);
-				console.log(`  ${suggestion.padEnd(maxLength + 2)}${description ? description : ''}`);
+				console.log(`  ${colors.formatHelpCommand(suggestion.padEnd(maxLength + 2))}${description ? colors.formatHelpDescription(description) : ''}`);
 			}
 		} else {
 			// These are basic command suggestions
-			console.log('Available commands:');
+			console.log(colors.formatHelpTitle('Available commands:'));
 
 			// Calculate the maximum length for formatting
 			const maxLength = Math.max(...suggestions.map((s) => s.length));
@@ -250,7 +251,7 @@ export class Shell {
 				let row = [];
 
 				for (let i = 0; i < suggestions.length; i++) {
-					row.push(suggestions[i].padEnd(maxLength + 2));
+					row.push(colors.formatHelpCommand(suggestions[i].padEnd(maxLength + 2)));
 
 					if (row.length === columns || i === suggestions.length - 1) {
 						console.log('  ' + row.join(''));
@@ -261,7 +262,7 @@ export class Shell {
 				// For fewer suggestions, show with descriptions
 				for (const cmd of suggestions) {
 					const description = commandRegistry.getDescription(cmd);
-					console.log(`  ${cmd.padEnd(maxLength + 2)}${description ? description : ''}`);
+					console.log(`  ${colors.formatHelpCommand(cmd.padEnd(maxLength + 2))}${description ? colors.formatHelpDescription(description) : ''}`);
 				}
 			}
 		}
@@ -299,9 +300,9 @@ export class Shell {
 		if (!success) {
 			const suggestions = commandRegistry.getSuggestions(commandToExecute);
 			if (suggestions.length > 0) {
-				console.log(`Unknown command "${command}". Did you mean "${suggestions[0]}"?`);
+				console.log(colors.formatError('Unknown command', `"${command}"`, `Did you mean "${suggestions[0]}"?`));
 			} else {
-				console.log(`Unknown command "${command}"`);
+				console.log(colors.formatError('Unknown command', `"${command}"`));
 			}
 		}
 
@@ -395,16 +396,18 @@ export class Shell {
 		try {
 			await Deno.stdin.setRaw(true);
 		} catch (error) {
-			console.error('Failed to set raw mode:', error);
+			console.error(colors.formatError('Terminal Error', `Failed to set raw mode: ${error.message}`));
 			return;
 		}
 
 		this.isRunning = true;
 		this.clearScreen();
-		console.log(`Welcome to ${this.name}. Type commands below.`);
-		console.log(`Commands can be entered with or without a leading slash (e.g., 'clear' or '/clear').`);
-		console.log(`Use '/exit' to quit.`);
-		console.log(`Press Tab for command completion.`);
+		console.log(colors.header(`Welcome to ${this.name}`));
+		console.log(colors.border(80));
+		console.log(colors.formatInfo(`Commands can be entered with or without a leading slash (e.g., 'clear' or '/clear').`));
+		console.log(colors.formatInfo(`Use '/exit' to quit.`));
+		console.log(colors.formatInfo(`Press Tab for command completion.`));
+		console.log(colors.border(80));
 		this.showPrompt();
 
 		await this.startReading();
@@ -417,7 +420,7 @@ export class Shell {
 		this.isRunning = false;
 		// Restore terminal
 		await Deno.stdin.setRaw(false);
-		console.log('\nShutting down...');
+		console.log('\n' + colors.formatSuccess('Shutting down...'));
 		Deno.exit(0);
 	}
 }
