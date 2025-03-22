@@ -1,0 +1,55 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "request": "launch",
+            "name": "Debug Current file",
+            "type": "node",
+            "program": "${file}",
+            "cwd": "${workspaceFolder}",
+            "runtimeExecutable": "/home/shaunbotsis/.deno/bin/deno",
+            "outputCapture": "std",
+            "env": {
+                "OTEL_DENO": "1",
+                "OTEL_SERVICE_NAME": "url-forwarder-service",
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4318",
+                "OTEL_DENO_CONSOLE":"capture",
+                "OTEL_EXPORTER_OTLP_PROTOCOL":"http/json",
+                "PUPPETEER_PRODUCT": "chrome"
+            },
+            "runtimeArgs": [
+                "run",
+                "--inspect-brk",
+                "--allow-all",
+                "--unstable-otel"
+            ],
+            "attachSimplePort": 9229
+        },
+        {
+            "request": "launch",
+            "name": "Debug Application",
+            "type": "node",
+            "program": "${workspaceFolder}/src/main.ts",
+            "cwd": "${workspaceFolder}",
+            "runtimeExecutable": "/home/shaunbotsis/.deno/bin/deno",
+            "outputCapture": "std",
+            "env": {
+                "OTEL_DENO": "1",
+                "OTEL_SERVICE_NAME": "url-forwarder-service",
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4318",
+                "OTEL_DENO_CONSOLE":"capture",
+                "OTEL_EXPORTER_OTLP_PROTOCOL":"http/json"
+            },
+            "runtimeArgs": [
+                "run",
+                "--inspect-brk",
+                "--allow-all",
+                "--unstable-otel"
+            ],
+            "attachSimplePort": 9229
+        }
+    ]
+}

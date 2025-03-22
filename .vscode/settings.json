@@ -1,0 +1,23 @@
+{
+  "deno.enable": true,
+  "deno.internalDebug": true,
+  "deno.codeLens.test": true,
+  "deno.codeLens.referencesAllFunctions": true,
+  "deno.codeLens.references": true,
+  "deno.codeLens.implementations": true,
+  "typescript.inlayHints.parameterTypes.enabled": true,
+  "typescript.suggest.completeFunctionCalls": true,
+  "deno.unstable": [],
+  "deno.lint": true,
+  "editor.formatOnSave": true,
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  },
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "search.exclude": {
+    "user-data-dir": true
+  },
+  "files.exclude": {
+    "user-data-dir": true
+  }
+}
