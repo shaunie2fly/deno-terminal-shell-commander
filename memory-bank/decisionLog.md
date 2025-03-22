@@ -29,7 +29,7 @@ Selected **deno_tui** for the UI implementation.
 - May need to handle component lifecycle carefully
 - Better long-term maintainability
 
-## ADR-002: Command Parser Selection
+## ADR-002: Command Parser Implementation
 **Date:** 2025-03-22
 
 ### Context
@@ -37,26 +37,29 @@ Need for a reliable command parsing system.
 
 ### Options Considered
 1. **deno-cliffy**
-   - Pros: Full-featured, well-documented, active development
-   - Cons: Larger API surface to learn
+   - Pros: Full-featured, well-documented
+   - Cons: External dependency, larger API surface, potential version conflicts
 
 2. **Custom Parser**
-   - Pros: Tailored to needs
-   - Cons: Development overhead, maintenance burden
+   - Pros: Full control, tailored to needs, no external dependencies
+   - Cons: Initial development overhead
 
 ### Decision
-Selected **deno-cliffy** for command parsing.
+Selected **Custom Parser** implementation.
 
 ### Rationale
-- Mature and well-tested
-- Supports complex command structures
-- Active maintenance
-- Good documentation
+- Complete control over parsing behavior
+- No external dependencies to manage
+- Can optimize specifically for our use case
+- Simpler to maintain long-term
+- Better integration with our command system
 
 ### Consequences
-- Dependency on external package
-- Need to manage version updates
-- Reduced development time
+- Need to implement custom parsing logic
+- More initial development time
+- More maintainable in long run
+- Reduced external dependencies
+- Better flexibility for future enhancements
 
 ## ADR-003: Project Structure
 **Date:** 2025-03-22
@@ -95,21 +98,22 @@ src/
 Need to configure project dependencies for UI and command parsing functionality.
 
 ### Decision
-Update deno.json to include:
-1. deno_tui for terminal UI
-2. Additional deno-cliffy modules for command handling
+Minimize external dependencies:
+1. Rely on Deno standard library where possible
+2. Implement custom solutions for core functionality
+3. Only use external packages when absolutely necessary
 
 ### Rationale
-- Essential dependencies for core functionality
-- Follows Deno best practices using import maps
-- Maintains consistent version management
-- Leverages JSR registry for package management
+- Reduced dependency maintenance
+- Better control over core functionality
+- Simplified version management
+- More predictable behavior
 
 ### Consequences
-- Need to update import maps in deno.json
-- Must handle deno_tui integration carefully
-- Version management responsibility
-- Additional learning curve for team
+- More initial development work
+- Greater control over implementation
+- Easier to modify and extend
+- Reduced version conflicts
 
 ## ADR-005: Terminal Interface Implementation Revision
 **Date:** 2025-03-22
@@ -134,6 +138,41 @@ Switch to a simpler implementation using:
 - Simpler but more manual implementation
 - More predictable behavior
 - Easier to test and maintain initially
+
+## ADR-006: Layout Management System
+**Date:** 2025-03-22
+
+### Context
+Need to implement a flexible layout management system that supports scrollable output and fixed command input areas while working with the manual terminal handling approach.
+
+### Decision
+Implement a Buffer-Based Layout Manager with:
+1. Virtual Buffer System
+   - Maintain separate buffers for output and input areas
+   - Track scroll position and viewport dimensions
+   - Handle terminal resize events
+
+2. Layout Components
+   - OutputArea: Scrollable region for command output
+   - InputArea: Fixed prompt region at bottom
+   - StatusLine: Optional status information display
+
+3. Layout Algorithm
+   - Calculate dimensions based on terminal size
+   - Reserve bottom N lines for input/status
+   - Allocate remaining space to output area
+
+### Rationale
+- Compatible with manual terminal handling
+- Efficient updates using virtual buffers
+- Clear separation of output and input areas
+- Flexible for future enhancements
+
+### Consequences
+- Need to implement custom buffer management
+- Must handle terminal resize events
+- More complex render logic
+- Better control over layout updates
 
 ## Future Decisions Needed
 1. Error handling strategy

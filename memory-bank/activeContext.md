@@ -3,7 +3,7 @@
 ## Project Type
 - Deno TypeScript project
 - Terminal-based shell framework
-- Interactive UI using deno_tui
+- Interactive terminal UI with buffer management
 
 ## Current Focus
 - Building a shell-based management framework
@@ -14,15 +14,31 @@
 ## Key Technologies
 - Deno Runtime
 - TypeScript (strict typing)
-- deno_tui for UI
-- deno-cliffy for command parsing
+- Custom terminal I/O handling
+- ANSI escape sequences for formatting
 
 ## Architecture Pattern
 - Repository/Service pattern
-- Component-based UI architecture
+- Buffer-based UI architecture
+   - Virtual buffer management
+   - Screen region control
+   - Efficient layout updates
+- Custom command parsing system
 - Event-driven command system
 
 ## Current Status
-- Initial project setup phase
-- Core architecture defined
-- Implementation plan documented
+- Core shell implementation completed
+- Layout management system implemented
+   - Buffer-based rendering
+   - Scrollable output area
+   - Fixed input prompt
+   - Status line support
+- Command system operational
+- Moving to service integration phase
+
+## Next Steps
+- Implement example services
+   - File system operations
+   - Process management
+- Add background task support
+- Set up testing framework

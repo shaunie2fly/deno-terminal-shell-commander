@@ -16,12 +16,12 @@ commandRegistry.register("clear", {
 
 commandRegistry.register("hello", {
   description: "Say hello",
-  action: () => console.log(colors.formatSuccess("Hello from the shell!")),
+  action: () => shell.writeOutput(colors.formatSuccess("Hello from the shell!\n")),
 });
 
 commandRegistry.register("time", {
   description: "Display current time",
-  action: () => console.log(colors.formatInfo(`Current time: ${new Date().toLocaleTimeString()}`)),
+  action: () => shell.writeOutput(colors.formatInfo(`Current time: ${new Date().toLocaleTimeString()}\n`)),
 });
 
 // Register a command with subcommands to demonstrate contextual completion
@@ -38,36 +38,46 @@ fileSubcommands.set("list", {
       }
       
       if (entries.length === 0) {
-        console.log(colors.formatWarning("No files found."));
+        shell.writeOutput(colors.formatWarning("No files found.\n"));
         return;
       }
       
-      console.log(colors.formatHelpTitle("Files in current directory:"));
-      entries.forEach(entry => console.log(`  ${colors.formatInfo(entry)}`));
+      const output = [
+        colors.formatHelpTitle("Files in current directory:"),
+        ...entries.map(entry => `  ${colors.formatInfo(entry)}`)
+      ];
+      shell.writeOutput(output.join('\n') + '\n');
     } catch (error) {
-      console.log(colors.formatError("Error", `Error listing files: ${error.message}`));
+      if (error instanceof Error) {
+        shell.writeOutput(colors.formatError("Error", `Error listing files: ${error.message}`) + '\n');
+      } else {
+        shell.writeOutput(colors.formatError("Error", "An unknown error occurred while listing files") + '\n');
+      }
     }
   }
 });
 
 fileSubcommands.set("info", {
   description: "Show file information",
-  action: () => console.log(colors.formatExecuting("File info command (placeholder)")),
+  action: () => shell.writeOutput(colors.formatExecuting("File info command (placeholder)\n")),
 });
 
 fileSubcommands.set("search", {
   description: "Search for files",
-  action: () => console.log(colors.formatExecuting("File search command (placeholder)")),
+  action: () => shell.writeOutput(colors.formatExecuting("File search command (placeholder)\n")),
 });
 
 // Register the file command with its subcommands
 commandRegistry.register("file", {
   description: "File operations",
   action: () => {
-    console.log(colors.formatHelpTitle("File command usage:"));
-    console.log(`  ${colors.formatHelpCommand("file list")}    - ${colors.formatHelpDescription("List files in the current directory")}`);
-    console.log(`  ${colors.formatHelpCommand("file info")}    - ${colors.formatHelpDescription("Show file information")}`);
-    console.log(`  ${colors.formatHelpCommand("file search")}  - ${colors.formatHelpDescription("Search for files")}`);
+    const output = [
+      colors.formatHelpTitle("File command usage:"),
+      `  ${colors.formatHelpCommand("file list")}    - ${colors.formatHelpDescription("List files in the current directory")}`,
+      `  ${colors.formatHelpCommand("file info")}    - ${colors.formatHelpDescription("Show file information")}`,
+      `  ${colors.formatHelpCommand("file search")}  - ${colors.formatHelpDescription("Search for files")}`
+    ];
+    shell.writeOutput(output.join('\n') + '\n');
   },
   subcommands: fileSubcommands
 });
@@ -77,33 +87,36 @@ const serviceSubcommands = new Map<string, CommandOptions>();
 
 serviceSubcommands.set("start", {
   description: "Start a service",
-  action: () => console.log(colors.formatSuccess("Service started (placeholder)")),
+  action: () => shell.writeOutput(colors.formatSuccess("Service started (placeholder)\n")),
 });
 
 serviceSubcommands.set("stop", {
   description: "Stop a service",
-  action: () => console.log(colors.formatWarning("Service stopped (placeholder)")),
+  action: () => shell.writeOutput(colors.formatWarning("Service stopped (placeholder)\n")),
 });
 
 serviceSubcommands.set("restart", {
   description: "Restart a service",
-  action: () => console.log(colors.formatExecuting("Service restarting...") + "\n" + colors.formatSuccess("Service restarted (placeholder)")),
+  action: () => shell.writeOutput(colors.formatExecuting("Service restarting...") + "\n" + colors.formatSuccess("Service restarted (placeholder)\n")),
 });
 
 serviceSubcommands.set("status", {
   description: "Show service status",
-  action: () => console.log(colors.formatInfo("Service status: active (placeholder)")),
+  action: () => shell.writeOutput(colors.formatInfo("Service status: active (placeholder)\n")),
 });
 
 // Register the service command with its subcommands
 commandRegistry.register("service", {
   description: "Service management",
   action: () => {
-    console.log(colors.formatHelpTitle("Service command usage:"));
-    console.log(`  ${colors.formatHelpCommand("service start")}    - ${colors.formatHelpDescription("Start a service")}`);
-    console.log(`  ${colors.formatHelpCommand("service stop")}     - ${colors.formatHelpDescription("Stop a service")}`);
-    console.log(`  ${colors.formatHelpCommand("service restart")}  - ${colors.formatHelpDescription("Restart a service")}`);
-    console.log(`  ${colors.formatHelpCommand("service status")}   - ${colors.formatHelpDescription("Show service status")}`);
+    const output = [
+      colors.formatHelpTitle("Service command usage:"),
+      `  ${colors.formatHelpCommand("service start")}    - ${colors.formatHelpDescription("Start a service")}`,
+      `  ${colors.formatHelpCommand("service stop")}     - ${colors.formatHelpDescription("Stop a service")}`,
+      `  ${colors.formatHelpCommand("service restart")}  - ${colors.formatHelpDescription("Restart a service")}`,
+      `  ${colors.formatHelpCommand("service status")}   - ${colors.formatHelpDescription("Show service status")}`
+    ];
+    shell.writeOutput(output.join('\n') + '\n');
   },
   subcommands: serviceSubcommands
 });
@@ -112,24 +125,27 @@ commandRegistry.register("service", {
 commandRegistry.register("colors", {
   description: "Display color demo",
   action: () => {
-    console.log(colors.formatHelpTitle("Color Demo"));
-    console.log(colors.border(80, "Command Output Colors"));
-    console.log(colors.formatSuccess("Success message - Used for successful operations"));
-    console.log(colors.formatInfo("Info message - Used for general information"));
-    console.log(colors.formatWarning("Warning message - Used for warnings"));
-    console.log(colors.formatExecuting("Executing message - Used for in-progress operations"));
-    
-    console.log(colors.border(80, "Error Formatting"));
-    console.log(colors.formatError("Error Title", "Error message details", "Optional hint to resolve the error"));
-    
-    console.log(colors.border(80, "Help Text Formatting"));
-    console.log(colors.formatHelpTitle("Help Section Title"));
-    console.log(`${colors.formatHelpCommand("command")}    ${colors.formatHelpDescription("Command description")}`);
-    console.log(`${colors.formatHelpExample("Example: command arg --option=value")}`);
-    
-    console.log(colors.border(80, "Utility Formatting"));
-    console.log(`${colors.highlight("Highlighted text")} - ${colors.dim("Dimmed text")}`);
-    console.log(colors.header("Section Header"));
+    const output = [
+      colors.formatHelpTitle("Color Demo"),
+      colors.border(80, "Command Output Colors"),
+      colors.formatSuccess("Success message - Used for successful operations"),
+      colors.formatInfo("Info message - Used for general information"),
+      colors.formatWarning("Warning message - Used for warnings"),
+      colors.formatExecuting("Executing message - Used for in-progress operations"),
+      "",
+      colors.border(80, "Error Formatting"),
+      colors.formatError("Error Title", "Error message details", "Optional hint to resolve the error"),
+      "",
+      colors.border(80, "Help Text Formatting"),
+      colors.formatHelpTitle("Help Section Title"),
+      `${colors.formatHelpCommand("command")}    ${colors.formatHelpDescription("Command description")}`,
+      colors.formatHelpExample("Example: command arg --option=value"),
+      "",
+      colors.border(80, "Utility Formatting"),
+      `${colors.highlight("Highlighted text")} - ${colors.dim("Dimmed text")}`,
+      colors.header("Section Header")
+    ];
+    shell.writeOutput(output.join('\n') + '\n');
   },
 });
 
@@ -137,8 +153,11 @@ commandRegistry.register("colors", {
 commandRegistry.register("help", {
   description: "Display available commands",
   action: () => {
-    console.log("\n" + colors.formatHelpTitle("Available commands:"));
-    console.log(colors.border(80));
+    const output = [];
+    
+    // Header
+    output.push(colors.formatHelpTitle("Available commands:"));
+    output.push(colors.border(80));
     
     // Group commands by type
     const basicCommands = [];
@@ -153,29 +172,33 @@ commandRegistry.register("help", {
     }
     
     // Display basic commands
-    console.log("\n" + colors.header("Basic commands:"));
+    output.push(colors.header("Basic commands:"));
     for (const { name, cmd } of basicCommands) {
-      console.log(`  ${colors.formatHelpCommand(name.padEnd(12))} ${colors.formatHelpDescription(cmd.description)}`);
+      output.push(`  ${colors.formatHelpCommand(name.padEnd(12))} ${colors.formatHelpDescription(cmd.description)}`);
     }
     
     // Display commands with subcommands
-    console.log("\n" + colors.header("Commands with subcommands:"));
+    output.push("\n" + colors.header("Commands with subcommands:"));
     for (const { name, cmd } of commandsWithSubcommands) {
-      console.log(`  ${colors.formatHelpCommand(name.padEnd(12))} ${colors.formatHelpDescription(cmd.description)}`);
+      output.push(`  ${colors.formatHelpCommand(name.padEnd(12))} ${colors.formatHelpDescription(cmd.description)}`);
       
       // Show available subcommands
       if (cmd.subcommands) {
         for (const [subName, subCmd] of cmd.subcommands) {
-          console.log(`    ${colors.formatHelpCommand(name)} ${colors.formatHelpCommand(subName.padEnd(10))} ${colors.formatHelpDescription(subCmd.description)}`);
+          const subCmdStr = `    ${colors.formatHelpCommand(name)} ${colors.formatHelpCommand(subName.padEnd(8))}`;
+          output.push(`${subCmdStr} ${colors.formatHelpDescription(subCmd.description)}`);
         }
       }
     }
     
-    console.log("\n" + colors.header("Features:"));
-    console.log(`  ${colors.formatInfo("- Use up/down arrows for command history")}`);
-    console.log(`  ${colors.formatInfo("- Press Tab for command completion")}`);
-    console.log(`  ${colors.formatInfo("- Use '/exit' to quit")}`);
-    console.log(`  ${colors.formatInfo("- Try the 'colors' command to see color formatting options")}`);
+    output.push("\n" + colors.header("Features:"));
+    output.push(`  ${colors.formatInfo("- Use up/down arrows for command history")}`);
+    output.push(`  ${colors.formatInfo("- Press Tab for command completion")}`);
+    output.push(`  ${colors.formatInfo("- Use '/exit' to quit")}`);
+    output.push(`  ${colors.formatInfo("- Try the 'colors' command to see color formatting options")}`);
+
+    // Join all lines with proper line endings and write to shell
+    shell.writeOutput(output.join('\n') + '\n');
   },
 });
 

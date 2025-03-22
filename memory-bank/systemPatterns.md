@@ -16,7 +16,40 @@ class ShellComponent {
 }
 ```
 
-### 2. Command Registration
+### 2. Layout Management
+```typescript
+// Buffer-based layout management pattern
+interface LayoutBuffer {
+  content: string[];
+  viewport: {
+    start: number;
+    size: number;
+  };
+  dimensions: {
+    width: number;
+    height: number;
+  };
+}
+
+class LayoutManager {
+  private outputBuffer: LayoutBuffer;
+  private inputBuffer: LayoutBuffer;
+  private statusBuffer: LayoutBuffer;
+
+  updateLayout(terminalSize: { width: number; height: number }): void {
+    this.calculateDimensions(terminalSize);
+    this.updateBuffers();
+    this.render();
+  }
+
+  private calculateDimensions(size: { width: number; height: number }): void {
+    // Reserve space for input and status
+    // Allocate remaining space to output
+  }
+}
+```
+
+### 3. Command Registration
 ```typescript
 // Command registration pattern
 interface CommandDefinition {
@@ -32,7 +65,7 @@ function registerCommand(def: CommandDefinition): void {
 }
 ```
 
-### 3. Service Integration
+### 4. Service Integration
 ```typescript
 // Service integration pattern
 interface ServiceConfig {
@@ -67,6 +100,12 @@ class ServiceRegistry {
 - Command execution feedback
 - Background task monitoring
 
+### 4. Buffer Management Pattern
+- Virtual buffer maintenance
+- Viewport calculations
+- Efficient updates
+- Scroll management
+
 ## Code Organization
 
 ### 1. Directory Structure
@@ -76,6 +115,9 @@ src/
 ├── commands/     # Command definitions
 ├── services/     # Service integration
 ├── ui/          # UI components
+│   ├── layout/  # Layout management
+│   ├── buffer/  # Buffer handling
+│   └── render/  # Render logic
 └── utils/       # Shared utilities
 ```
 
@@ -85,6 +127,8 @@ src/
 - `*.component.ts` - UI components
 - `*.utils.ts` - Utility functions
 - `*.types.ts` - Type definitions
+- `*.buffer.ts` - Buffer implementations
+- `*.layout.ts` - Layout managers
 
 ## Best Practices
 
@@ -173,7 +217,14 @@ async function executeCommand(
 - Event handling
 - Resource management
 
-### 4. Command System
+### 4. Layout Components
+- Buffer-based rendering
+- Viewport management
+- Efficient updates
+- Event handling
+- Terminal resize handling
+
+### 5. Command System
 - Validation first
 - Clear feedback
 - Proper cleanup
@@ -186,15 +237,18 @@ async function executeCommand(
 - Integration tests for commands
 - UI component testing
 - Performance benchmarks
+- Layout rendering tests
 
 ### 2. Code Review Guidelines
 - Type safety verification
 - Pattern compliance
 - Error handling review
 - Documentation check
+- Layout logic verification
 
 ### 3. Performance Guidelines
 - Efficient UI updates
-- Resource management
-- Memory usage
-- Response times
+- Buffer management optimization
+- Minimal re-renders
+- Memory usage monitoring
+- Viewport calculation efficiency

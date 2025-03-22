@@ -6,7 +6,7 @@
 import * as rt from 'runtypes';
 
 // ANSI color code constants
-const ESC = '\x1b';
+const ESC = String.fromCharCode(27);
 const CSI = ESC + '[';
 const RESET = CSI + '0m';
 
@@ -41,53 +41,53 @@ const BG_WHITE = CSI + '47m';
  * Color name to ANSI code mapping
  */
 const FG_COLORS: Record<string, string> = {
-	black: FG_BLACK,
-	red: FG_RED,
-	green: FG_GREEN,
-	yellow: FG_YELLOW,
-	blue: FG_BLUE,
-	magenta: FG_MAGENTA,
-	cyan: FG_CYAN,
-	white: FG_WHITE,
-	gray: FG_GRAY,
-	grey: FG_GRAY,
-	bold: BOLD,
+  black: FG_BLACK,
+  red: FG_RED,
+  green: FG_GREEN,
+  yellow: FG_YELLOW,
+  blue: FG_BLUE,
+  magenta: FG_MAGENTA,
+  cyan: FG_CYAN,
+  white: FG_WHITE,
+  gray: FG_GRAY,
+  grey: FG_GRAY,
+  bold: BOLD,
 };
 
 /**
  * Color theme definition for terminal output
  */
 export const ColorThemeConfig = rt.Record({
-	// Command output formatting
-	command: rt.Record({
-		success: rt.String,
-		info: rt.String,
-		warning: rt.String,
-		executing: rt.String,
-	}),
+  // Command output formatting
+  command: rt.Record({
+    success: rt.String,
+    info: rt.String,
+    warning: rt.String,
+    executing: rt.String,
+  }),
 
-	// Error message colors
-	error: rt.Record({
-		title: rt.String,
-		message: rt.String,
-		hint: rt.String,
-	}),
+  // Error message colors
+  error: rt.Record({
+    title: rt.String,
+    message: rt.String,
+    hint: rt.String,
+  }),
 
-	// Help text formatting
-	help: rt.Record({
-		title: rt.String,
-		command: rt.String,
-		description: rt.String,
-		example: rt.String,
-	}),
+  // Help text formatting
+  help: rt.Record({
+    title: rt.String,
+    command: rt.String,
+    description: rt.String,
+    example: rt.String,
+  }),
 
-	// Utility colors
-	utility: rt.Record({
-		highlight: rt.String,
-		dim: rt.String,
-		border: rt.String,
-		header: rt.String,
-	}),
+  // Utility colors
+  utility: rt.Record({
+    highlight: rt.String,
+    dim: rt.String,
+    border: rt.String,
+    header: rt.String,
+  }),
 });
 
 /**
@@ -99,29 +99,29 @@ export type ColorTheme = rt.Static<typeof ColorThemeConfig>;
  * Default color theme for terminal output
  */
 export const defaultTheme: ColorTheme = {
-	command: {
-		success: 'green',
-		info: 'cyan',
-		warning: 'yellow',
-		executing: 'blue',
-	},
-	error: {
-		title: 'red',
-		message: 'white',
-		hint: 'yellow',
-	},
-	help: {
-		title: 'magenta',
-		command: 'cyan',
-		description: 'white',
-		example: 'green',
-	},
-	utility: {
-		highlight: 'cyan',
-		dim: 'gray',
-		border: 'gray',
-		header: 'bold',
-	},
+  command: {
+    success: 'green',
+    info: 'cyan',
+    warning: 'yellow',
+    executing: 'blue',
+  },
+  error: {
+    title: 'red',
+    message: 'white',
+    hint: 'yellow',
+  },
+  help: {
+    title: 'magenta',
+    command: 'cyan',
+    description: 'white',
+    example: 'green',
+  },
+  utility: {
+    highlight: 'cyan',
+    dim: 'gray',
+    border: 'gray',
+    header: 'bold',
+  },
 };
 
 /**
@@ -134,13 +134,17 @@ let activeTheme: ColorTheme = defaultTheme;
  * @param theme - The custom color theme to use
  */
 export function setColorTheme(theme: ColorTheme): void {
-	try {
-		// Validate theme with runtime type checking
-		ColorThemeConfig.check(theme);
-		activeTheme = theme;
-	} catch (error) {
-		console.error(`Invalid color theme: ${error.message}`);
-	}
+  try {
+    // Validate theme with runtime type checking
+    ColorThemeConfig.check(theme);
+    activeTheme = theme;
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error(`Invalid color theme: ${error.message}`);
+    } else {
+      console.error('Invalid color theme: Unknown error');
+    }
+  }
 }
 
 /**
@@ -150,8 +154,8 @@ export function setColorTheme(theme: ColorTheme): void {
  * @returns Formatted colored string
  */
 function colorize(colorName: string, text: string): string {
-	const colorCode = FG_COLORS[colorName.toLowerCase()] || '';
-	return `${colorCode}${text}${RESET}`;
+  const colorCode = FG_COLORS[colorName.toLowerCase()] || '';
+  return `${colorCode}${text}${RESET}`;
 }
 
 /**
@@ -160,7 +164,7 @@ function colorize(colorName: string, text: string): string {
  * @returns Bold formatted string
  */
 function bold(text: string): string {
-	return `${BOLD}${text}${RESET}`;
+  return `${BOLD}${text}${RESET}`;
 }
 
 /**
@@ -169,7 +173,7 @@ function bold(text: string): string {
  * @returns Formatted colored string
  */
 export function formatSuccess(message: string): string {
-	return colorize(activeTheme.command.success, message);
+  return colorize(activeTheme.command.success, message);
 }
 
 /**
@@ -178,7 +182,7 @@ export function formatSuccess(message: string): string {
  * @returns Formatted colored string
  */
 export function formatInfo(message: string): string {
-	return colorize(activeTheme.command.info, message);
+  return colorize(activeTheme.command.info, message);
 }
 
 /**
@@ -187,7 +191,7 @@ export function formatInfo(message: string): string {
  * @returns Formatted colored string
  */
 export function formatWarning(message: string): string {
-	return colorize(activeTheme.command.warning, message);
+  return colorize(activeTheme.command.warning, message);
 }
 
 /**
@@ -196,7 +200,7 @@ export function formatWarning(message: string): string {
  * @returns Formatted colored string
  */
 export function formatExecuting(message: string): string {
-	return colorize(activeTheme.command.executing, message);
+  return colorize(activeTheme.command.executing, message);
 }
 
 /**
@@ -207,15 +211,15 @@ export function formatExecuting(message: string): string {
  * @returns Formatted multi-line colored error string
  */
 export function formatError(title: string, message: string, hint?: string): string {
-	const errorTitle = colorize(activeTheme.error.title, title);
-	const errorMessage = colorize(activeTheme.error.message, message);
-	let output = `${errorTitle}: ${errorMessage}`;
+  const errorTitle = colorize(activeTheme.error.title, title);
+  const errorMessage = colorize(activeTheme.error.message, message);
+  let output = `${errorTitle}: ${errorMessage}`;
 
-	if (hint) {
-		output += `\n${colorize(activeTheme.error.hint, hint)}`;
-	}
+  if (hint) {
+    output += `\n${colorize(activeTheme.error.hint, hint)}`;
+  }
 
-	return output;
+  return output;
 }
 
 /**
@@ -224,7 +228,7 @@ export function formatError(title: string, message: string, hint?: string): stri
  * @returns Formatted colored string
  */
 export function formatHelpCommand(command: string): string {
-	return colorize(activeTheme.help.command, command);
+  return colorize(activeTheme.help.command, command);
 }
 
 /**
@@ -233,7 +237,7 @@ export function formatHelpCommand(command: string): string {
  * @returns Formatted colored string
  */
 export function formatHelpDescription(description: string): string {
-	return colorize(activeTheme.help.description, description);
+  return colorize(activeTheme.help.description, description);
 }
 
 /**
@@ -242,8 +246,8 @@ export function formatHelpDescription(description: string): string {
  * @returns Formatted colored string
  */
 export function formatHelpTitle(title: string): string {
-	// Apply both bold and color formatting to title
-	return bold(colorize(activeTheme.help.title, title));
+  // Apply both bold and color formatting to title
+  return bold(colorize(activeTheme.help.title, title));
 }
 
 /**
@@ -252,7 +256,7 @@ export function formatHelpTitle(title: string): string {
  * @returns Formatted colored string
  */
 export function formatHelpExample(example: string): string {
-	return colorize(activeTheme.help.example, example);
+  return colorize(activeTheme.help.example, example);
 }
 
 /**
@@ -261,7 +265,7 @@ export function formatHelpExample(example: string): string {
  * @returns Formatted colored string
  */
 export function highlight(text: string): string {
-	return colorize(activeTheme.utility.highlight, text);
+  return colorize(activeTheme.utility.highlight, text);
 }
 
 /**
@@ -270,7 +274,7 @@ export function highlight(text: string): string {
  * @returns Formatted colored string
  */
 export function dim(text: string): string {
-	return colorize(activeTheme.utility.dim, text);
+  return colorize(activeTheme.utility.dim, text);
 }
 
 /**
@@ -279,12 +283,12 @@ export function dim(text: string): string {
  * @returns Formatted colored string
  */
 export function header(text: string): string {
-	// If header is set to bold, apply bold formatting directly
-	if (activeTheme.utility.header === 'bold') {
-		return bold(text);
-	}
-	// Otherwise apply the color with bold formatting
-	return bold(colorize(activeTheme.utility.header, text));
+  // If header is set to bold, apply bold formatting directly
+  if (activeTheme.utility.header === 'bold') {
+    return bold(text);
+  }
+  // Otherwise apply the color with bold formatting
+  return bold(colorize(activeTheme.utility.header, text));
 }
 
 /**
@@ -294,18 +298,18 @@ export function header(text: string): string {
  * @returns Formatted border string
  */
 export function border(width: number, title?: string): string {
-	const borderChar = '─';
+  const borderChar = '─';
 
-	if (!title) {
-		return colorize(activeTheme.utility.border, borderChar.repeat(width));
-	}
+  if (!title) {
+    return colorize(activeTheme.utility.border, borderChar.repeat(width));
+  }
 
-	const formattedTitle = ` ${title} `;
-	const sideWidth = Math.floor((width - formattedTitle.length) / 2);
-	const leftBorder = borderChar.repeat(Math.max(0, sideWidth));
-	const rightBorder = borderChar.repeat(Math.max(0, width - sideWidth - formattedTitle.length));
+  const formattedTitle = ` ${title} `;
+  const sideWidth = Math.floor((width - formattedTitle.length) / 2);
+  const leftBorder = borderChar.repeat(Math.max(0, sideWidth));
+  const rightBorder = borderChar.repeat(Math.max(0, width - sideWidth - formattedTitle.length));
 
-	return colorize(activeTheme.utility.border, leftBorder) +
-		highlight(formattedTitle) +
-		colorize(activeTheme.utility.border, rightBorder);
+  return colorize(activeTheme.utility.border, leftBorder) +
+         highlight(formattedTitle) +
+         colorize(activeTheme.utility.border, rightBorder);
 }
