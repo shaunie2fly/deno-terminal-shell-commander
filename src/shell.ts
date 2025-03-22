@@ -10,6 +10,7 @@ const CSI = ESC + '[';
 const UP_ARROW = 'A';
 const DOWN_ARROW = 'B';
 const BACKSPACE_SEQUENCE = '\b \b';
+const TAB = 9; // ASCII code for Tab key
 
 // Screen control sequences
 const CLEAR_LINE = CSI + '2K';
@@ -96,6 +97,118 @@ export class Shell {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Handle tab completion
+	 * 
+	 * Processes tab key presses to:
+	 * 1. Auto-complete partial commands when there's a single match
+	 * 2. Display multiple suggestions when there are several matches
+	 * 3. Handle contextual completion based on command structure
+	 */
+	private handleTabCompletion(): void {
+		const input = this.buffer.trim();
+		
+		// Skip tab completion if buffer is empty
+		if (!input) return;
+		
+		// Handle commands with or without leading slash
+		const commandInput = input.startsWith('/') ? input.substring(1) : input;
+		
+			// Get command suggestions from registry
+		const suggestions = commandRegistry.getSuggestions(commandInput);
+		
+		if (suggestions.length === 0) {
+			// No matches found, do nothing
+			return;
+		} else if (suggestions.length === 1) {
+			// Single match - autocomplete
+			const completedCommand = input.startsWith('/') ? `/${suggestions[0]}` : suggestions[0];
+			this.updateBuffer(completedCommand);
+		} else if (suggestions.length > 1) {
+			// Multiple matches - show suggestions
+			this.write('\n');
+			
+			// Find common prefix for partial completion
+			const commonPrefix = this.findCommonPrefix(suggestions);
+			
+			// Display all suggestions in a formatted table-like layout
+			console.log('Available completions:');
+			
+			// Calculate the maximum length for formatting
+			const maxLength = Math.max(...suggestions.map(s => s.length));
+			const columns = Math.floor(80 / (maxLength + 4)); // Assume 80 column terminal width
+			let row = [];
+			
+			for (let i = 0; i < suggestions.length; i++) {
+				row.push(suggestions[i].padEnd(maxLength + 2));
+				
+				if (row.length === columns || i === suggestions.length - 1) {
+					console.log('  ' + row.join(''));
+					row = [];
+				}
+			}
+			
+			// If there's a common prefix longer than current input, use it
+			const currentCommandPart = commandInput.split(/\s+/).pop() || '';
+			
+			// Determine if we're completing a subcommand (command that contains spaces)
+			const isSubcommandCompletion = commandInput.includes(' ');
+			
+			if (isSubcommandCompletion) {
+				// Handle contextual completion for subcommands
+				const parts = commandInput.split(/\s+/);
+				const rootCommand = parts[0];
+				
+				// If commonPrefix is longer than current input part, update it
+				if (commonPrefix.length > currentCommandPart.length) {
+					// Create the new command by replacing the last part
+					parts[parts.length - 1] = commonPrefix;
+					const newCommand = parts.join(' ');
+					const prefixWithSlash = input.startsWith('/') ? `/${newCommand}` : newCommand;
+					
+					this.showPrompt();
+					this.updateBuffer(prefixWithSlash);
+					return;
+				}
+			} else if (commonPrefix.length > commandInput.length) {
+				// For regular commands, update with common prefix if it's longer
+				const prefixToUse = input.startsWith('/') ? `/${commonPrefix}` : commonPrefix;
+				
+				this.showPrompt();
+				this.updateBuffer(prefixToUse);
+				return;
+			}
+			
+			// Just show prompt with current buffer
+			this.showPrompt();
+			this.write(this.buffer);
+		}
+	}
+	
+	/**
+	 * Find the longest common prefix among an array of strings
+	 * 
+	 * @param strings - Array of strings to find common prefix from
+	 * @returns The longest common prefix
+	 */
+	private findCommonPrefix(strings: string[]): string {
+		if (strings.length === 0) return '';
+		if (strings.length === 1) return strings[0];
+		
+		let prefix = strings[0];
+		
+		for (let i = 1; i < strings.length; i++) {
+			let j = 0;
+			while (j < prefix.length && j < strings[i].length && prefix[j] === strings[i][j]) {
+				j++;
+			}
+			prefix = prefix.substring(0, j);
+			if (prefix === '') break;
+		}
+		
+		return prefix;
 	}
 
 	/**
@@ -208,6 +321,8 @@ export class Shell {
 					this.showPrompt();
 				} else if (char === '\b' || charCode === 127) { // Backspace (^H or DEL)
 					this.handleBackspace();
+				} else if (charCode === TAB) { // Tab key
+					this.handleTabCompletion();
 				} else if (char >= ' ') { // Printable characters
 					this.buffer += char;
 					this.write(char);
@@ -233,6 +348,7 @@ export class Shell {
 		console.log(`Welcome to ${this.name}. Type commands below.`);
 		console.log(`Commands can be entered with or without a leading slash (e.g., 'clear' or '/clear').`);
 		console.log(`Use '/exit' to quit.`);
+		console.log(`Press Tab for command completion.`);
 		this.showPrompt();
 
 		await this.startReading();

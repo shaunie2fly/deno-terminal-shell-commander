@@ -32,18 +32,18 @@
 - [x] History preservation
 - [x] Line editing (backspace, cursor movement)
 - [x] Consistent command execution
+- [x] Tab Completion:
+  - [x] Basic command name completion
+  - [x] Multiple suggestion handling
+  - [x] Contextual completion
 
 ## Current Focus
-- [ ] Tab Completion:
-  - [ ] Basic command name completion
-  - [ ] Multiple suggestion handling
-  - [ ] Contextual completion
-
-## Next Steps
 - [ ] Add color support for output
   - [ ] Command output formatting
   - [ ] Error message highlighting
   - [ ] Help text formatting
+
+## Next Steps
 - [ ] Create example service implementation
   - [ ] File system service
   - [ ] Process management service
