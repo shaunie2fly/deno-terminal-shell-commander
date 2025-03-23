@@ -7,6 +7,8 @@ const decoder = new TextDecoder();
 // Key codes
 const UP_ARROW = 'A';
 const DOWN_ARROW = 'B';
+const RIGHT_ARROW = 'C';
+const LEFT_ARROW = 'D';
 const TAB = 9; // ASCII code for Tab key
 const CTRL_C = '';
 
@@ -25,6 +27,7 @@ interface ShellConfig {
  */
 export class Shell {
 	private buffer = '';
+	private cursorPosition = 0; // Track cursor position within buffer
 	private history: string[] = [];
 	private historyIndex = -1;
 	private tempBuffer = ''; // Store buffer when navigating history
@@ -68,7 +71,7 @@ export class Shell {
 	 * Display the prompt
 	 */
 	private showPrompt(): void {
-		this.layout.updateInput(this.prompt + this.buffer);
+		this.layout.updateInputWithCursor(this.prompt + this.buffer, this.prompt.length + this.cursorPosition);
 		this.layout.render(Deno.stdout);
 	}
 
@@ -99,17 +102,25 @@ export class Shell {
 			}
 			if (this.historyIndex < this.history.length - 1) {
 				this.historyIndex++;
-				// Use full render here as we're changing context
-				this.updateBuffer(this.history[this.history.length - 1 - this.historyIndex]);
+				// Get the historical command
+				const historyCommand = this.history[this.history.length - 1 - this.historyIndex];
+				// Update buffer with full render
+				this.buffer = historyCommand;
+				this.cursorPosition = historyCommand.length;
+				this.updateInputWithCursor();
 			}
 		} else if (key === DOWN_ARROW) {
 			if (this.historyIndex > -1) {
 				this.historyIndex--;
 				if (this.historyIndex === -1) {
-					this.updateBuffer(this.tempBuffer);
+					this.buffer = this.tempBuffer;
+					this.cursorPosition = this.tempBuffer.length;
 				} else {
-					this.updateBuffer(this.history[this.history.length - 1 - this.historyIndex]);
+					const historyCommand = this.history[this.history.length - 1 - this.historyIndex];
+					this.buffer = historyCommand;
+					this.cursorPosition = historyCommand.length;
 				}
+				this.updateInputWithCursor();
 			}
 		}
 	}
@@ -390,6 +401,10 @@ export class Shell {
 				if (escapeState === 2) {
 					if (char === UP_ARROW || char === DOWN_ARROW) {
 						this.handleArrowKey(char);
+					} else if (char === LEFT_ARROW) {
+						this.moveCursorLeft();
+					} else if (char === RIGHT_ARROW) {
+						this.moveCursorRight();
 					}
 					escapeState = 0;
 					continue;
@@ -411,24 +426,20 @@ export class Shell {
 					this.tempBuffer = '';
 					this.write('\n'); // Add a newline for command execution
 					this.buffer = '';
+					this.cursorPosition = 0; // Reset cursor position
 					await this.handleInput(command);
 				} else if (char === CTRL_C) {
 					this.write('^C\n');
 					this.buffer = '';
+					this.cursorPosition = 0; // Reset cursor position
 					this.historyIndex = -1;
 					this.showPrompt();
 				} else if (char === '\b' || charCode === 127) { // Backspace (^H or DEL)
-					if (this.buffer.length > 0) {
-						this.buffer = this.buffer.slice(0, -1);
-						// Use the optimized update for character changes
-						this.updateBufferChar(this.buffer);
-					}
+					this.deleteBeforeCursor(); // Use the new cursor-aware deletion
 				} else if (charCode === TAB) { // Tab key
 					this.handleTabCompletion();
 				} else if (char >= ' ') { // Printable characters
-					this.buffer += char;
-					// Use the optimized update for character changes
-					this.updateBufferChar(this.buffer);
+					this.insertAtCursor(char); // Use the new cursor-aware insertion
 				}
 			}
 		}
@@ -458,6 +469,7 @@ export class Shell {
 			colors.formatInfo(`Commands can be entered with or without a leading slash (e.g., 'clear' or '/clear').`),
 			colors.formatInfo(`Use '/exit' to quit.`),
 			colors.formatInfo(`Press Tab for command completion.`),
+			colors.formatInfo(`Use arrow keys (↑/↓) for history and (←/→) for cursor navigation.`),
 			colors.border(80),
 		].join('\n') + '\n';
 
@@ -479,5 +491,63 @@ export class Shell {
 		await Deno.stdin.setRaw(false);
 		this.write('\n' + colors.formatSuccess('Shutting down...') + '\n');
 		Deno.exit(0);
+	}
+
+	/**
+	 * Update cursor position within valid range
+	 */
+	private updateCursorPosition(newPosition: number): void {
+		this.cursorPosition = Math.max(0, Math.min(newPosition, this.buffer.length));
+	}
+
+	/**
+	 * Move cursor one position left
+	 */
+	private moveCursorLeft(): void {
+		if (this.cursorPosition > 0) {
+			this.updateCursorPosition(this.cursorPosition - 1);
+			this.updateInputWithCursor();
+		}
+	}
+
+	/**
+	 * Move cursor one position right
+	 */
+	private moveCursorRight(): void {
+		if (this.cursorPosition < this.buffer.length) {
+			this.updateCursorPosition(this.cursorPosition + 1);
+			this.updateInputWithCursor();
+		}
+	}
+
+	/**
+	 * Update display with current cursor position
+	 */
+	private updateInputWithCursor(): void {
+		this.layout.updateInputWithCursor(this.prompt + this.buffer, this.prompt.length + this.cursorPosition);
+	}
+
+	/**
+	 * Insert character at current cursor position
+	 */
+	private insertAtCursor(char: string): void {
+		const pre = this.buffer.slice(0, this.cursorPosition);
+		const post = this.buffer.slice(this.cursorPosition);
+		this.buffer = pre + char + post;
+		this.cursorPosition++;
+		this.updateInputWithCursor();
+	}
+
+	/**
+	 * Delete character before cursor position
+	 */
+	private deleteBeforeCursor(): void {
+		if (this.cursorPosition > 0) {
+			const pre = this.buffer.slice(0, this.cursorPosition - 1);
+			const post = this.buffer.slice(this.cursorPosition);
+			this.buffer = pre + post;
+			this.cursorPosition--;
+			this.updateInputWithCursor();
+		}
 	}
 }
