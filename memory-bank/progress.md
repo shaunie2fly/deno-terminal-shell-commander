@@ -95,8 +95,9 @@
 - [ ] Testing & Documentation
   - [ ] Unit test framework setup
   - [ ] Integration tests
-  - [ ] Developer documentation
+  - [x] Developer documentation
   - [ ] API documentation
+  - [x] Command integration guide
 
 ## Milestones
 1. 🏗 Project Setup (Completed)
@@ -127,3 +128,4 @@
 - Building for extensibility
 - Layout management design follows buffer-based approach for efficiency
 - Using Deno standard APIs for better maintainability
+- Command integration documentation provides comprehensive guide for adding new commands

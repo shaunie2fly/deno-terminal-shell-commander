@@ -221,3 +221,5 @@ const state = serviceRegistry.getServiceState("fs");
 if (state.status === ServiceStatus.ERROR) {
   console.log(`Last error: ${state.health.errors.at(-1)}`);
 }
+
+For detailed examples of command implementations and usage patterns, see [State Management Examples](state-management-examples.md).
