@@ -1,44 +1,56 @@
-# Active Context
-
-## Project Type
-- Deno TypeScript project
-- Terminal-based shell framework
-- Interactive terminal UI with buffer management
+# Active Development Context
 
 ## Current Focus
-- Building a shell-based management framework
-- Interactive terminal interface
-- Command management system
-- Service integration capabilities
+Testing & Documentation Phase
 
-## Key Technologies
-- Deno Runtime
-- TypeScript (strict typing)
-- Custom terminal I/O handling
-- ANSI escape sequences for formatting
+## Latest Updates
+- Completed core service integration components
+- Implemented example services:
+  - File system service with state management
+  - Process management service with background tasks
+- Updated dependency strategy to use Deno standard APIs
 
-## Architecture Pattern
-- Repository/Service pattern
-- Buffer-based UI architecture
-   - Virtual buffer management
-   - Screen region control
-   - Efficient layout updates
-- Custom command parsing system
-- Event-driven command system
+## Key Documents
+- [Service Integration Specification](specs/service-integration.md)
+- [Technical Decision Log](decisionLog.md)
+- [Progress Tracking](progress.md)
 
-## Current Status
-- Core shell implementation completed
-- Layout management system implemented
-   - Buffer-based rendering
-   - Scrollable output area
-   - Fixed input prompt
-   - Status line support
-- Command system operational
-- Moving to service integration phase
+## Implementation Status
+1. Service Registry Enhancements ✅
+   - Added state management
+   - Added health monitoring
+   - Added dependency management
+   - Added versioning support
 
-## Next Steps
-- Implement example services
-   - File system operations
-   - Process management
-- Add background task support
-- Set up testing framework
+2. Background Task System ✅
+   - Task scheduling
+   - Progress reporting
+   - Task cancellation
+   - Resource cleanup
+
+3. Output Management System ✅
+   - Stream-based processing
+   - Output transformers
+   - Buffering and pagination
+   - Real-time UI updates
+
+4. Example Services ✅
+   - File system service implementation
+   - Process management service implementation
+
+## Current Priorities
+1. Set up testing framework
+2. Write unit tests for:
+   - Service registry
+   - Task manager
+   - Output system
+   - Example services
+3. Create integration tests
+4. Write developer documentation
+
+## Next Actions
+- [ ] Set up testing framework
+- [ ] Create test cases for core components
+- [ ] Implement integration tests
+- [ ] Document service development guide
+- [ ] Document API reference
