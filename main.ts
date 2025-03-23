@@ -42,11 +42,9 @@ fileSubcommands.set("list", {
         return;
       }
       
-      const output = [
-        colors.formatHelpTitle("Files in current directory:"),
-        ...entries.map(entry => `  ${colors.formatInfo(entry)}`)
-      ];
-      shell.writeOutput(output.join('\n') + '\n');
+      const title = colors.formatHelpTitle("Files in current directory:");
+      const content = entries.map(entry => `  ${colors.formatInfo(entry)}`).join('\n');
+      shell.writeOutput(`${title}\n${content}\n`);
     } catch (error) {
       if (error instanceof Error) {
         shell.writeOutput(colors.formatError("Error", `Error listing files: ${error.message}`) + '\n');
@@ -76,7 +74,7 @@ commandRegistry.register("file", {
       `  ${colors.formatHelpCommand("file list")}    - ${colors.formatHelpDescription("List files in the current directory")}`,
       `  ${colors.formatHelpCommand("file info")}    - ${colors.formatHelpDescription("Show file information")}`,
       `  ${colors.formatHelpCommand("file search")}  - ${colors.formatHelpDescription("Search for files")}`
-    ];
+    ].filter(Boolean);
     shell.writeOutput(output.join('\n') + '\n');
   },
   subcommands: fileSubcommands
@@ -115,7 +113,7 @@ commandRegistry.register("service", {
       `  ${colors.formatHelpCommand("service stop")}     - ${colors.formatHelpDescription("Stop a service")}`,
       `  ${colors.formatHelpCommand("service restart")}  - ${colors.formatHelpDescription("Restart a service")}`,
       `  ${colors.formatHelpCommand("service status")}   - ${colors.formatHelpDescription("Show service status")}`
-    ];
+    ].filter(Boolean);
     shell.writeOutput(output.join('\n') + '\n');
   },
   subcommands: serviceSubcommands
@@ -132,19 +130,16 @@ commandRegistry.register("colors", {
       colors.formatInfo("Info message - Used for general information"),
       colors.formatWarning("Warning message - Used for warnings"),
       colors.formatExecuting("Executing message - Used for in-progress operations"),
-      "",
       colors.border(80, "Error Formatting"),
       colors.formatError("Error Title", "Error message details", "Optional hint to resolve the error"),
-      "",
       colors.border(80, "Help Text Formatting"),
       colors.formatHelpTitle("Help Section Title"),
       `${colors.formatHelpCommand("command")}    ${colors.formatHelpDescription("Command description")}`,
       colors.formatHelpExample("Example: command arg --option=value"),
-      "",
       colors.border(80, "Utility Formatting"),
       `${colors.highlight("Highlighted text")} - ${colors.dim("Dimmed text")}`,
       colors.header("Section Header")
-    ];
+    ].filter(Boolean);
     shell.writeOutput(output.join('\n') + '\n');
   },
 });
@@ -153,12 +148,6 @@ commandRegistry.register("colors", {
 commandRegistry.register("help", {
   description: "Display available commands",
   action: () => {
-    const output = [];
-    
-    // Header
-    output.push(colors.formatHelpTitle("Available commands:"));
-    output.push(colors.border(80));
-    
     // Group commands by type
     const basicCommands = [];
     const commandsWithSubcommands = [];
@@ -170,35 +159,40 @@ commandRegistry.register("help", {
         basicCommands.push({ name, cmd });
       }
     }
-    
-    // Display basic commands
-    output.push(colors.header("Basic commands:"));
-    for (const { name, cmd } of basicCommands) {
-      output.push(`  ${colors.formatHelpCommand(name.padEnd(12))} ${colors.formatHelpDescription(cmd.description)}`);
-    }
-    
-    // Display commands with subcommands
-    output.push("\n" + colors.header("Commands with subcommands:"));
-    for (const { name, cmd } of commandsWithSubcommands) {
-      output.push(`  ${colors.formatHelpCommand(name.padEnd(12))} ${colors.formatHelpDescription(cmd.description)}`);
-      
-      // Show available subcommands
-      if (cmd.subcommands) {
-        for (const [subName, subCmd] of cmd.subcommands) {
-          const subCmdStr = `    ${colors.formatHelpCommand(name)} ${colors.formatHelpCommand(subName.padEnd(8))}`;
-          output.push(`${subCmdStr} ${colors.formatHelpDescription(subCmd.description)}`);
-        }
-      }
-    }
-    
-    output.push("\n" + colors.header("Features:"));
-    output.push(`  ${colors.formatInfo("- Use up/down arrows for command history")}`);
-    output.push(`  ${colors.formatInfo("- Press Tab for command completion")}`);
-    output.push(`  ${colors.formatInfo("- Use '/exit' to quit")}`);
-    output.push(`  ${colors.formatInfo("- Try the 'colors' command to see color formatting options")}`);
 
-    // Join all lines with proper line endings and write to shell
-    shell.writeOutput(output.join('\n') + '\n');
+    // Build sections independently
+    const header = [
+      colors.formatHelpTitle("Available commands:"),
+      colors.border(80)
+    ].join('\n');
+
+    const basicCommandsSection = [
+      colors.header("Basic commands:"),
+      ...basicCommands.map(({ name, cmd }) =>
+        `  ${colors.formatHelpCommand(name.padEnd(12))} ${colors.formatHelpDescription(cmd.description)}`)
+    ].join('\n');
+
+    const subcommandsSection = [
+      colors.header("Commands with subcommands:"),
+      ...commandsWithSubcommands.flatMap(({ name, cmd }) => [
+        `  ${colors.formatHelpCommand(name.padEnd(12))} ${colors.formatHelpDescription(cmd.description)}`,
+        ...(cmd.subcommands ? Array.from(cmd.subcommands).map(([subName, subCmd]) => {
+          const subCmdStr = `    ${colors.formatHelpCommand(name)} ${colors.formatHelpCommand(subName.padEnd(8))}`;
+          return `${subCmdStr} ${colors.formatHelpDescription(subCmd.description)}`;
+        }) : [])
+      ])
+    ].join('\n');
+
+    const featuresSection = [
+      colors.header("Features:"),
+      `  ${colors.formatInfo("- Use up/down arrows for command history")}`,
+      `  ${colors.formatInfo("- Press Tab for command completion")}`,
+      `  ${colors.formatInfo("- Use '/exit' to quit")}`,
+      `  ${colors.formatInfo("- Try the 'colors' command to see color formatting options")}`
+    ] .join('\n') ;
+
+    // Combine all sections with single newlines between them
+    shell.writeOutput(`${header}\n${basicCommandsSection}\n${subcommandsSection}\n${featuresSection}\n`);
   },
 });
 

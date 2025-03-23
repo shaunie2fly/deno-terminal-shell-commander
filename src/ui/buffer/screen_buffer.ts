@@ -39,19 +39,35 @@ export class ScreenBuffer {
 	 * Write content to the buffer
 	 */
 	write(content: string): void {
-	  // Split incoming content into lines first
-	  const contentLines = content.split('\n');
+	  // Handle double newlines as explicit requests for empty lines
+	  // Replace double newlines with a special marker temporarily
+	  const doubleNewlineMarker = '\uE000'; // Use a Unicode private use character as marker
+	  const processedContent = content.replace(/\n\n/g, doubleNewlineMarker);
 	  
-	  // Process each line separately for better control
+	  // Split content by single newlines
+	  const contentLines = processedContent.split('\n');
+	  
+	  // Process each line separately
 	  for (const line of contentLines) {
-	    // Split line into parts that fit within width
-	    const wrappedLines = this.wrapText(line, this.region.width);
-	    
-	    // Add empty line after each complete line from input
-	    // but only if it's not the last line
-	    this.lines.push(...wrappedLines);
-	    if (line !== contentLines[contentLines.length - 1]) {
-	      this.lines.push('');
+	    if (line.includes(doubleNewlineMarker)) {
+	      // Handle sections with double newlines
+	      const segments = line.split(doubleNewlineMarker);
+	      for (let i = 0; i < segments.length; i++) {
+	        if (segments[i].length > 0) {
+	          // Add the content segment
+	          const wrappedLines = this.wrapText(segments[i], this.region.width);
+	          this.lines.push(...wrappedLines);
+	        }
+	        
+	        // Add an empty line after each segment except the last one
+	        if (i < segments.length - 1) {
+	          this.lines.push('');
+	        }
+	      }
+	    } else {
+	      // Normal line without double newlines
+	      const wrappedLines = this.wrapText(line, this.region.width);
+	      this.lines.push(...wrappedLines);
 	    }
 	  }
 	
