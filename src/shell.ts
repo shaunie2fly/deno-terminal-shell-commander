@@ -43,17 +43,17 @@ export class Shell {
 	 * Write content to the output buffer
 	 */
 	public writeOutput(content: string): void {
-	  this.layout.writeOutput(content);
-	  // Don't immediately render after each write - we'll render once at the end
-	  this.layout.render(Deno.stdout);
+		this.layout.writeOutput(content);
+		// Don't immediately render after each write - we'll render once at the end
+		this.layout.render(Deno.stdout);
 	}
-	
+
 	/**
 	 * Internal write method for shell operations
 	 */
 	private write(content: string): void {
-	  this.layout.writeOutput(content);
-	  // Don't immediately render after each write - we'll render once at the end
+		this.layout.writeOutput(content);
+		// Don't immediately render after each write - we'll render once at the end
 	}
 
 	/**
@@ -133,20 +133,26 @@ export class Shell {
 		if (isCompleteCommand) {
 			const command = commandRegistry.getCommands().get(commandInput);
 			if (command?.subcommands && command.subcommands.size > 0) {
-				// Show subcommand help
 				this.write('\n');
-				const helpTitle = colors.formatHelpTitle(`Available subcommands for '${commandInput}':`);
-				this.write(helpTitle + '\n');
+
+				// Build output content in an array first
+				const outputLines: string[] = [];
+
+				// Add title
+				outputLines.push(colors.formatHelpTitle(`Available subcommands for '${commandInput}':`));
 
 				// Calculate the maximum length for formatting
 				const maxLength = Math.max(...Array.from(command.subcommands.keys()).map((s) => s.length));
 
-				// Show each subcommand with its description
+				// Add each subcommand with its description
 				for (const [name, subCmd] of command.subcommands) {
 					const formattedCommand = colors.formatHelpCommand(name.padEnd(maxLength + 2));
 					const formattedDescription = colors.formatHelpDescription(subCmd.description);
-					this.write(`  ${formattedCommand}${formattedDescription}\n`);
+					outputLines.push(`  ${formattedCommand}${formattedDescription}`);
 				}
+
+				// Write all lines at once
+				this.write(outputLines.join('\n') + '\n');
 
 				// Render here before showing prompt
 				this.layout.render(Deno.stdout);
@@ -179,7 +185,7 @@ export class Shell {
 			this.layout.render(Deno.stdout);
 
 			// Handle common prefix completion
-			const currentCommandPart = commandInput.split(/\s+/).pop() || '';
+			const _currentCommandPart = commandInput.split(/\s+/).pop() || '';
 			const isSubcommandCompletion = commandInput.includes(' ');
 
 			if (isSubcommandCompletion) {
@@ -233,20 +239,23 @@ export class Shell {
 		// Check if these are subcommand suggestions
 		const isSubcommandSuggestion = suggestions[0].includes(' ');
 
+		// Build content lines in arrays first, then join at the end
+		const outputLines: string[] = [];
+
 		if (isSubcommandSuggestion) {
 			// Subcommand suggestions
-			this.write(colors.formatHelpTitle('Available options:') + '\n');
+			outputLines.push(colors.formatHelpTitle('Available options:'));
 			const maxLength = Math.max(...suggestions.map((s) => s.length));
 
 			for (const suggestion of suggestions) {
 				const description = commandRegistry.getSubcommandDescription(suggestion);
 				const formattedCommand = colors.formatHelpCommand(suggestion.padEnd(maxLength + 2));
 				const formattedDescription = description ? colors.formatHelpDescription(description) : '';
-				this.write(`  ${formattedCommand}${formattedDescription}\n`);
+				outputLines.push(`  ${formattedCommand}${formattedDescription}`);
 			}
 		} else {
 			// Basic command suggestions
-			this.write(colors.formatHelpTitle('Available commands:') + '\n');
+			outputLines.push(colors.formatHelpTitle('Available commands:'));
 			const maxLength = Math.max(...suggestions.map((s) => s.length));
 			const columns = Math.floor(80 / (maxLength + 4)); // Assume 80 column terminal width
 
@@ -256,7 +265,7 @@ export class Shell {
 				for (let i = 0; i < suggestions.length; i++) {
 					row.push(colors.formatHelpCommand(suggestions[i].padEnd(maxLength + 2)));
 					if (row.length === columns || i === suggestions.length - 1) {
-						this.write('  ' + row.join('') + '\n');
+						outputLines.push('  ' + row.join(''));
 						row = [];
 					}
 				}
@@ -266,10 +275,13 @@ export class Shell {
 					const description = commandRegistry.getDescription(cmd);
 					const formattedCommand = colors.formatHelpCommand(cmd.padEnd(maxLength + 2));
 					const formattedDescription = description ? colors.formatHelpDescription(description) : '';
-					this.write(`  ${formattedCommand}${formattedDescription}\n`);
+					outputLines.push(`  ${formattedCommand}${formattedDescription}`);
 				}
 			}
 		}
+
+		// Write all lines at once with a single newline character between each line
+		this.write(outputLines.join('\n') + '\n');
 	}
 
 	/**
@@ -307,18 +319,18 @@ export class Shell {
 
 		// Check if command starts with a slash and remove it for execution
 		const commandToExecute = command.startsWith('/') ? command.substring(1) : command;
-		
+
 		// Don't clear output for help command or its variations
 		const isHelpCommand = commandToExecute === 'help' || commandToExecute.startsWith('help ');
-		
+
 		// Only clear output if it's not a help command
 		if (!isHelpCommand) {
-		    this.layout.clearOutput();
+			this.layout.clearOutput();
 		}
-		
+
 		// Try executing the command
 		const success = await commandRegistry.executeCommand(commandToExecute);
-		
+
 		// Handle command failure
 		if (!success) {
 			const suggestions = commandRegistry.getSuggestions(commandToExecute);
@@ -441,18 +453,18 @@ export class Shell {
 		// Batch welcome message content together
 		// Write welcome message
 		const welcomeMessage = [
-		  colors.header(`Welcome to ${this.name}`),
-		  colors.border(80),
-		  colors.formatInfo(`Commands can be entered with or without a leading slash (e.g., 'clear' or '/clear').`),
-		  colors.formatInfo(`Use '/exit' to quit.`),
-		  colors.formatInfo(`Press Tab for command completion.`),
-		  colors.border(80),
+			colors.header(`Welcome to ${this.name}`),
+			colors.border(80),
+			colors.formatInfo(`Commands can be entered with or without a leading slash (e.g., 'clear' or '/clear').`),
+			colors.formatInfo(`Use '/exit' to quit.`),
+			colors.formatInfo(`Press Tab for command completion.`),
+			colors.border(80),
 		].join('\n') + '\n';
-		
+
 		// Write and render in one go
 		this.write(welcomeMessage);
 		this.layout.render(Deno.stdout);
-		
+
 		// Show prompt without re-rendering everything
 		this.layout.updateInputOnly(this.prompt);
 		await this.startReading();

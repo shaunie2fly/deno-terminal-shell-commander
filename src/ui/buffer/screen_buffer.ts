@@ -39,46 +39,46 @@ export class ScreenBuffer {
 	 * Write content to the buffer
 	 */
 	write(content: string): void {
-	  // Handle double newlines as explicit requests for empty lines
-	  // Replace double newlines with a special marker temporarily
-	  const doubleNewlineMarker = '\uE000'; // Use a Unicode private use character as marker
-	  const processedContent = content.replace(/\n\n/g, doubleNewlineMarker);
-	  
-	  // Split content by single newlines
-	  const contentLines = processedContent.split('\n');
-	  
-	  // Process each line separately
-	  for (const line of contentLines) {
-	    if (line.includes(doubleNewlineMarker)) {
-	      // Handle sections with double newlines
-	      const segments = line.split(doubleNewlineMarker);
-	      for (let i = 0; i < segments.length; i++) {
-	        if (segments[i].length > 0) {
-	          // Add the content segment
-	          const wrappedLines = this.wrapText(segments[i], this.region.width);
-	          this.lines.push(...wrappedLines);
-	        }
-	        
-	        // Add an empty line after each segment except the last one
-	        if (i < segments.length - 1) {
-	          this.lines.push('');
-	        }
-	      }
-	    } else {
-	      // Normal line without double newlines
-	      const wrappedLines = this.wrapText(line, this.region.width);
-	      this.lines.push(...wrappedLines);
-	    }
-	  }
-	
-	  // Maintain only as many lines as we need
-	  const maxLines = this.region.height * 3; // Keep 3 screens worth of history
-	  if (this.lines.length > maxLines) {
-	    this.lines = this.lines.slice(-maxLines);
-	  }
-	
-	  // Auto-scroll to show new content
-	  this.viewport.start = Math.max(0, this.lines.length - this.viewport.size);
+		// Handle double newlines as explicit requests for empty lines
+		// Replace double newlines with a special marker temporarily
+		const doubleNewlineMarker = '\uE000'; // Use a Unicode private use character as marker
+		const processedContent = content.replace(/\n\n/g, doubleNewlineMarker);
+
+		// Split content by single newlines
+		const contentLines = processedContent.split('\n');
+
+		// Process each line separately
+		for (const line of contentLines) {
+			if (line.includes(doubleNewlineMarker)) {
+				// Handle sections with double newlines
+				const segments = line.split(doubleNewlineMarker);
+				for (let i = 0; i < segments.length; i++) {
+					if (segments[i].length > 0) {
+						// Add the content segment
+						const wrappedLines = this.wrapText(segments[i], this.region.width);
+						this.lines.push(...wrappedLines);
+					}
+
+					// Add an empty line after each segment except the last one
+					if (i < segments.length - 1) {
+						this.lines.push('');
+					}
+				}
+			} else {
+				// Normal line without double newlines
+				const wrappedLines = this.wrapText(line, this.region.width);
+				this.lines.push(...wrappedLines);
+			}
+		}
+
+		// Maintain only as many lines as we need
+		const maxLines = this.region.height * 3; // Keep 3 screens worth of history
+		if (this.lines.length > maxLines) {
+			this.lines = this.lines.slice(-maxLines);
+		}
+
+		// Auto-scroll to show new content
+		this.viewport.start = Math.max(0, this.lines.length - this.viewport.size);
 	}
 
 	/**
@@ -152,95 +152,95 @@ export class ScreenBuffer {
 	 * Wrap text to fit within specified width
 	 */
 	private wrapText(text: string, width: number): string[] {
-	  // If text is empty or width is 0 or less, return empty array
-	  if (!text || width <= 0) return [''];
-	  
-	  const lines: string[] = [];
-	  
-	  // Check if text contains ANSI escape sequences
-	  const hasAnsi = text.includes('\x1b[');
-	  
-	  if (!hasAnsi) {
-	    // Simple case: no ANSI sequences
-	    const words = text.split(/(\s+)/);
-	    let currentLine = '';
-	
-	    for (const word of words) {
-	      if (currentLine.length + word.length <= width) {
-	        currentLine += word;
-	      } else if (word.trim().length > width) {
-	        // If current line has content, push it first
-	        if (currentLine.trim()) {
-	          lines.push(currentLine);
-	        }
-	        // Split long word across multiple lines
-	        for (let i = 0; i < word.length; i += width) {
-	          lines.push(word.slice(i, Math.min(i + width, word.length)));
-	        }
-	        currentLine = '';
-	      } else {
-	        if (currentLine.trim()) {
-	          lines.push(currentLine);
-	        }
-	        currentLine = word;
-	      }
-	    }
-	
-	    if (currentLine.trim()) {
-	      lines.push(currentLine);
-	    }
-	  } else {
-	    // Complex case: handle ANSI sequences
-	    // Split by newlines first to preserve intentional line breaks
-	    const textLines = text.split('\n');
-	    
-	    for (const line of textLines) {
-	      if (!line) {
-	        lines.push('');
-	        continue;
-	      }
-	
-	      let currentLine = '';
-	      let visibleLength = 0;
-	      let buffer = '';
-	      let inEscapeSeq = false;
-	
-	      for (let i = 0; i < line.length; i++) {
-	        const char = line[i];
-	        
-	        if (char === '\x1b') {
-	          inEscapeSeq = true;
-	          buffer += char;
-	          continue;
-	        }
-	        
-	        if (inEscapeSeq) {
-	          buffer += char;
-	          if (char === 'm') {
-	            inEscapeSeq = false;
-	            currentLine += buffer;
-	            buffer = '';
-	          }
-	          continue;
-	        }
-	
-	        if (visibleLength >= width) {
-	          lines.push(currentLine);
-	          currentLine = '';
-	          visibleLength = 0;
-	        }
-	
-	        currentLine += char;
-	        visibleLength++;
-	      }
-	
-	      if (currentLine) {
-	        lines.push(currentLine);
-	      }
-	    }
-	  }
-	
-	  return lines.length ? lines : [''];
+		// If text is empty or width is 0 or less, return empty array
+		if (!text || width <= 0) return [''];
+
+		const lines: string[] = [];
+
+		// Check if text contains ANSI escape sequences
+		const hasAnsi = text.includes('\x1b[');
+
+		if (!hasAnsi) {
+			// Simple case: no ANSI sequences
+			const words = text.split(/(\s+)/);
+			let currentLine = '';
+
+			for (const word of words) {
+				if (currentLine.length + word.length <= width) {
+					currentLine += word;
+				} else if (word.trim().length > width) {
+					// If current line has content, push it first
+					if (currentLine.trim()) {
+						lines.push(currentLine);
+					}
+					// Split long word across multiple lines
+					for (let i = 0; i < word.length; i += width) {
+						lines.push(word.slice(i, Math.min(i + width, word.length)));
+					}
+					currentLine = '';
+				} else {
+					if (currentLine.trim()) {
+						lines.push(currentLine);
+					}
+					currentLine = word;
+				}
+			}
+
+			if (currentLine.trim()) {
+				lines.push(currentLine);
+			}
+		} else {
+			// Complex case: handle ANSI sequences
+			// Split by newlines first to preserve intentional line breaks
+			const textLines = text.split('\n');
+
+			for (const line of textLines) {
+				if (!line) {
+					lines.push('');
+					continue;
+				}
+
+				let currentLine = '';
+				let visibleLength = 0;
+				let buffer = '';
+				let inEscapeSeq = false;
+
+				for (let i = 0; i < line.length; i++) {
+					const char = line[i];
+
+					if (char === '\x1b') {
+						inEscapeSeq = true;
+						buffer += char;
+						continue;
+					}
+
+					if (inEscapeSeq) {
+						buffer += char;
+						if (char === 'm') {
+							inEscapeSeq = false;
+							currentLine += buffer;
+							buffer = '';
+						}
+						continue;
+					}
+
+					if (visibleLength >= width) {
+						lines.push(currentLine);
+						currentLine = '';
+						visibleLength = 0;
+					}
+
+					currentLine += char;
+					visibleLength++;
+				}
+
+				if (currentLine) {
+					lines.push(currentLine);
+				}
+			}
+		}
+
+		return lines.length ? lines : [''];
 	}
 
 	/**
