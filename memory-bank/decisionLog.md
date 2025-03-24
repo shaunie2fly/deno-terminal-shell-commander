@@ -1,129 +1,115 @@
-# Technical Decision Log
+# Architectural Decision Log
 
-## 2024-03-23: Service Integration Architecture
-
-### Context
-Need to implement robust service integration system for terminal shell project. Current implementation provides basic service registration but needs enhancement for production use.
-
-### Decision
-Created comprehensive service integration specification focusing on:
-1. Enhanced service lifecycle management
-2. Background task support
-3. Continuous output handling
-4. Robust error handling
-
-### Rationale
-- Current implementation lacks critical features for production use
-- Need standardized approach for service development
-- Must support async operations and background tasks
-- Requires robust error handling and recovery
-
-### Implementation Plan
-1. Phase 1: Core Implementation
-   - Enhance service registry
-   - Implement task manager
-   - Create output management system
-   - Develop error handling framework
-
-2. Phase 2: Example Services
-   - File system service
-   - Process management service
-   - Network service
-
-### Success Criteria
-- All services properly isolated
-- Robust error handling and recovery
-- Efficient background task management
-- Clean service lifecycle management
-- Comprehensive testing coverage
-
-### Status
-Implementation phase - Core components complete, implementing example services.
-
-## 2024-03-23: Dependency Management Decision
+## ADR-001: Project Structure and File Organization
+* Status: Active
+* Date: 2025-03-24
 
 ### Context
-Need to decide on dependency strategy for the project, particularly regarding the use of external libraries.
+The terminal shell application needs to be converted into a reusable module that can be imported into other projects.
 
 ### Decision
-Decided to avoid using external libraries where possible, preferring Deno's standard APIs and built-in capabilities.
+We will adopt a streamlined architecture focusing on commands:
 
-### Rationale
-- Reduce external dependencies
-- Maintain better control over implementation
-- Leverage Deno's built-in capabilities
-- Simplify maintenance and updates
-- Ensure consistent behavior across environments
+1. Core functionality organized into:
+   - Shell management
+   - Enhanced command system
+   - UI components
 
-### Implementation Impact
-- Remove Cliffy dependencies
-- Use Deno standard APIs for:
-  - Process management
-  - File system operations
-  - Command handling
-  - Terminal I/O
+2. Single @terminal-shell package with core modules
 
-### Status
-Active - Implementing services using Deno standard APIs
+### Consequences
+* Positive:
+  - Simpler code organization
+  - Easier to understand and maintain
+  - Clear upgrade paths for users
+  - Reduced complexity
 
-## 2024-03-23: Command Integration Documentation
+* Negative:
+  - Breaking changes required
+  - Migration effort needed for existing code
+
+## ADR-002: Enhanced Command System
+* Status: Active
+* Date: 2025-03-24
 
 ### Context
-Need clear documentation for adding new commands to ensure consistent implementation and maintainable codebase.
+Current implementation separates commands and services, creating unnecessary complexity.
 
 ### Decision
-Created comprehensive command integration guide detailing:
-1. Command structure and registration
-2. Subcommand support
-3. Best practices for implementation
-4. Testing guidelines
+Merge service functionality into an enhanced command system:
 
-### Rationale
-- Standardize command implementation
-- Reduce technical debt
-- Improve developer onboarding
-- Ensure consistent error handling
+1. Commands can optionally include:
+   - Lifecycle hooks (init, cleanup)
+   - Health checking
+   - State management
+   - Subcommands
 
-### Status
-Complete - Documentation available in memory-bank/specs/command-integration.md
+2. Move from global registry to instance-based command registry
 
-## 2024-03-23: Process Status Streaming Architecture
+### Consequences
+* Positive:
+  - Simpler mental model
+  - Single system to maintain
+  - More flexible command capabilities
+  - Easier to document and understand
+
+* Negative:
+  - Migration needed for existing services
+  - Need to carefully handle stateful commands
+
+## ADR-003: Public API Design
+* Status: Active
+* Date: 2025-03-24
 
 ### Context
-Need to establish a standardized pattern for streaming status updates from async processes to the terminal shell. This includes progress reporting, error handling, and real-time status updates.
+Need to define a stable, well-documented public API for the module.
 
 ### Decision
-Leverage existing OutputStream and OutputManager system with the following key features:
-1. Buffered streaming with configurable limits
-2. Transformer-based formatting
-3. Event-driven status updates
-4. Resource cleanup management
+1. Create minimal public API focused on shell and command management:
+   - Core Shell class with essential methods
+   - Enhanced Command interface
+   - Promise-based async operations
+   - Event system for shell lifecycle
 
-### Rationale
-- Reuse existing output management infrastructure
-- Provide consistent status reporting across all processes
-- Enable flexible formatting through transformers
-- Support both buffered and real-time updates
-- Maintain clean resource management
+2. Use TypeScript for type safety and documentation
 
-### Alternatives Considered
-1. Custom Process Status Manager
-   - Pros: Purpose-built for process status
-   - Cons: Duplicates existing stream functionality
-   
-2. Direct Terminal Output
-   - Pros: Simpler implementation
-   - Cons: No buffering, formatting, or error handling
+### Consequences
+* Positive:
+  - Clear, simple API surface
+  - Type safety and better IDE support
+  - Easier for users to understand
+  - Better documentation
 
-3. External Status Service
-   - Pros: Could handle distributed processes
-   - Cons: Unnecessary complexity for local processes
+* Negative:
+  - Breaking changes for existing code
+  - Need to carefully manage interface evolution
 
-### Success Criteria
-- Real-time status updates without performance impact
-- Consistent error handling and reporting
-- Clean resource cleanup after process completion
-- Flexible formatting options for different output types
+## ADR-004: Testing Strategy
+* Status: Active
+* Date: 2025-03-24
 
-### Status
-Complete - Implementation guide available in memory-bank/specs/process-streaming.md
+### Context
+Need comprehensive testing strategy for module functionality.
+
+### Decision
+1. Create focused test suites:
+   - Unit tests for shell and command functionality
+   - Integration tests for complex command scenarios
+   - UI component tests
+   - State management tests
+
+2. Provide testing utilities:
+   - Shell test helpers
+   - Command test utilities
+   - State management helpers
+
+### Consequences
+* Positive:
+  - Better test coverage
+  - Easier testing for consumers
+  - Clear test patterns
+  - Simpler test organization
+
+* Negative:
+  - Need to test stateful commands thoroughly
+  - More complex state testing scenarios

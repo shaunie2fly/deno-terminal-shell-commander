@@ -8,7 +8,7 @@ import * as colors from "./src/colors.ts";
 
 // Create the shell instance
 const shell = new Shell({
-  name: "Demo Shell",
+  name: "Your Demo Shell",
   prompt: "demo> ",
 });
 
