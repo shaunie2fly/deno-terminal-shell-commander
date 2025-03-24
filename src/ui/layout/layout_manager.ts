@@ -20,6 +20,8 @@ export class LayoutManager {
 	private promptLength = 0; // Track prompt length for cursor positioning
 	private currentInputLength = 0; // Track current input length for cursor
 	private readonly ESC = String.fromCharCode(27); // Escape character for ANSI sequences
+	private isScrolling = false; // Track if we're in scroll mode
+	private scrollOffset = 0; // Current scroll position
 
 	constructor() {
 		// Get actual terminal size if available
@@ -115,6 +117,8 @@ export class LayoutManager {
 	 * Write content to the output buffer
 	 */
 	writeOutput(content: string): void {
+		// Reset scrolling when new content is written
+		this.resetScroll();
 		this.outputBuffer.write(content);
 	}
 
@@ -208,17 +212,94 @@ export class LayoutManager {
 	}
 
 	/**
-	 * Scroll output buffer up
+	 * Scroll output buffer up (show older content)
 	 */
 	scrollOutputUp(lines = 1): void {
+		// When scrolling up, we want to show older content (which is now at the beginning of the buffer)
 		this.outputBuffer.scrollUp(lines);
+		this.isScrolling = true;
+		this.scrollOffset += lines;
+		this.updateScrollIndicator();
 	}
 
 	/**
-	 * Scroll output buffer down
+	 * Scroll output buffer down (show newer content)
 	 */
 	scrollOutputDown(lines = 1): void {
+		// When scrolling down, we want to show newer content (which is now toward the end of the buffer)
 		this.outputBuffer.scrollDown(lines);
+		this.scrollOffset = Math.max(0, this.scrollOffset - lines);
+		this.isScrolling = this.scrollOffset > 0;
+		this.updateScrollIndicator();
+	}
+
+	/**
+	 * Reset scrolling to show most recent output
+	 */
+	resetScroll(): void {
+		if (this.isScrolling) {
+			// Set viewport to show the newest content at the bottom
+			this.outputBuffer.resetViewport();
+			this.isScrolling = false;
+			this.scrollOffset = 0;
+			this.updateScrollIndicator();
+		}
+	}
+
+	/**
+	 * Update the status bar with scroll indicator if scrolling
+	 */
+	private updateScrollIndicator(): void {
+		if (this.statusBuffer) {
+			if (this.isScrolling) {
+				const scrollMsg = `[SCROLL MODE: ${this.scrollOffset} lines up | Press ESC to return]`;
+				this.updateStatus(scrollMsg);
+			} else {
+				this.updateStatus(''); // Clear scroll indicator when not scrolling
+			}
+		}
+	}
+
+	/**
+	 * Handle key inputs for scrolling operations
+	 * @param key The key that was pressed
+	 * @returns True if the key was handled for scrolling, false otherwise
+	 */
+	handleScrollKeys(key: Uint8Array): boolean {
+		const keyString = new TextDecoder().decode(key);
+		
+		// Check for escape key to exit scroll mode
+		if (keyString === '\x1B' && this.isScrolling) {
+			this.resetScroll();
+			this.render(Deno.stdout);
+			return true;
+		}
+
+		// Check for Page Up/Down keys (ANSI sequences)
+		if (keyString === '\x1B[5~') { // Page Up
+			this.scrollOutputUp(this.terminalSize.height - 2);
+			this.render(Deno.stdout);
+			return true;
+		}
+		if (keyString === '\x1B[6~') { // Page Down
+			this.scrollOutputDown(this.terminalSize.height - 2);
+			this.render(Deno.stdout);
+			return true;
+		}
+
+		// Check for Arrow Up/Down with Shift modifier
+		if (keyString === '\x1B[1;2A') { // Shift + Up Arrow
+			this.scrollOutputUp(1);
+			this.render(Deno.stdout);
+			return true;
+		}
+		if (keyString === '\x1B[1;2B') { // Shift + Down Arrow
+			this.scrollOutputDown(1);
+			this.render(Deno.stdout);
+			return true;
+		}
+
+		return false;
 	}
 
 	/**

@@ -43,11 +43,11 @@ export class ScreenBuffer {
 		// Replace double newlines with a special marker temporarily
 		const doubleNewlineMarker = '\uE000'; // Use a Unicode private use character as marker
 		const processedContent = content.replace(/\n\n/g, doubleNewlineMarker);
-
+		
 		// Split content by single newlines
 		const contentLines = processedContent.split('\n');
 		const newLines: string[] = [];
-
+		
 		// Process each line separately
 		for (const line of contentLines) {
 			if (line.includes(doubleNewlineMarker)) {
@@ -59,7 +59,6 @@ export class ScreenBuffer {
 						const wrappedLines = this.wrapText(segments[i], this.region.width);
 						newLines.push(...wrappedLines);
 					}
-
 					// Add an empty line after each segment except the last one
 					if (i < segments.length - 1) {
 						newLines.push('');
@@ -72,17 +71,18 @@ export class ScreenBuffer {
 			}
 		}
 
-		// Add new lines to the beginning of the buffer for bottom-up scrolling
-		this.lines = [...newLines, ...this.lines];
-
+		// Add new lines to the end of the buffer for proper bottom-up scrolling
+		this.lines = [...this.lines, ...newLines];
+		
 		// Maintain only as many lines as we need (limit buffer size)
 		const maxLines = this.region.height * 10; // Keep 10 screens worth of history
 		if (this.lines.length > maxLines) {
-			this.lines = this.lines.slice(0, maxLines);
+			// Remove oldest lines (from the beginning of the array)
+			this.lines = this.lines.slice(this.lines.length - maxLines);
 		}
-
-		// Always show from the beginning of the buffer (newest content)
-		this.viewport.start = 0;
+		
+		// Adjust viewport to show the newest content (at the end of the buffer)
+		this.viewport.start = Math.max(0, this.lines.length - this.viewport.size);
 	}
 
 	/**
@@ -97,10 +97,10 @@ export class ScreenBuffer {
 	 * Get the content within the current viewport
 	 */
 	getViewportContent(): string[] {
-		// For bottom-up scrolling, return from the start of the viewport
+			// Get lines from the current viewport position
 		return this.lines.slice(
 			this.viewport.start,
-			this.viewport.start + Math.min(this.viewport.size, this.lines.length),
+			this.viewport.start + Math.min(this.viewport.size, this.lines.length - this.viewport.start),
 		);
 	}
 
@@ -108,15 +108,25 @@ export class ScreenBuffer {
 	 * Scroll the viewport up (show older content)
 	 */
 	scrollUp(lines = 1): void {
-		const maxStart = Math.max(0, this.lines.length - this.viewport.size);
-		this.viewport.start = Math.min(maxStart, this.viewport.start + lines);
-	}
+			// To show older content (toward beginning of buffer), decrease start index
+			this.viewport.start = Math.max(0, this.viewport.start - lines);
+		}
+
+		/**
+		 * Scroll the viewport down (show newer content)
+		 */
+		scrollDown(lines = 1): void {
+			// To show newer content (toward end of buffer), increase start index
+			const maxStart = Math.max(0, this.lines.length - this.viewport.size);
+			this.viewport.start = Math.min(maxStart, this.viewport.start + lines);
+		}
 
 	/**
-	 * Scroll the viewport down (show newer content)
+	 * Reset viewport to show most recent content
 	 */
-	scrollDown(lines = 1): void {
-		this.viewport.start = Math.max(0, this.viewport.start - lines);
+	resetViewport(): void {
+		// Position viewport to show the newest content (at the end of the buffer)
+		this.viewport.start = Math.max(0, this.lines.length - this.viewport.size);
 	}
 
 	/**

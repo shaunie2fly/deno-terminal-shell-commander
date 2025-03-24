@@ -567,6 +567,7 @@ commandRegistry.register("help", {
     ].join('\n');
 
     // Combine all sections with single newlines between them
+    // Use standard writeOutput for help content to maintain consistency
     shell.writeOutput(`${header}\n${basicCommandsSection}\n${subcommandsSection}\n${featuresSection}\n`);
   },
 });

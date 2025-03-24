@@ -11,6 +11,8 @@ const RIGHT_ARROW = 'C';
 const LEFT_ARROW = 'D';
 const TAB = 9; // ASCII code for Tab key
 const CTRL_C = '';
+const PAGE_UP = '5~';
+const PAGE_DOWN = '6~';
 
 /**
  * Interface for shell component configuration
@@ -378,13 +380,19 @@ export class Shell {
 	private async startReading(): Promise<void> {
 		const buffer = new Uint8Array(1024);
 		let escapeState = 0; // 0: normal, 1: got ESC, 2: got CSI
+		let escapeBuffer = ''; // Buffer to store escape sequence characters
 
 		while (this.isRunning) {
 			const n = await Deno.stdin.read(buffer);
 			if (n === null) break;
 
-			const input = decoder.decode(buffer.subarray(0, n));
+			// Check if this is a scroll-related key first
+			if (this.layout.handleScrollKeys(buffer.subarray(0, n))) {
+				// Key was handled by scroll handler
+				continue;
+			}
 
+			const input = decoder.decode(buffer.subarray(0, n));
 			for (let i = 0; i < input.length; i++) {
 				const char = input[i];
 				const charCode = char.charCodeAt(0);
@@ -392,54 +400,88 @@ export class Shell {
 				// Handle escape sequences
 				if (escapeState === 0 && char === '\x1B') {
 					escapeState = 1;
+					escapeBuffer = '\x1B';
 					continue;
 				}
-				if (escapeState === 1 && char === '[') {
-					escapeState = 2;
-					continue;
+
+				if (escapeState === 1) {
+					escapeBuffer += char;
+					if (char === '[') {
+						escapeState = 2;
+						continue;
+					} else {
+						// Not a CSI sequence
+						escapeState = 0;
+						escapeBuffer = '';
+					}
 				}
+
 				if (escapeState === 2) {
+					escapeBuffer += char;
+					
+					// Check for complete escape sequences
 					if (char === UP_ARROW || char === DOWN_ARROW) {
 						this.handleArrowKey(char);
+						escapeState = 0;
+						escapeBuffer = '';
+						continue;
 					} else if (char === LEFT_ARROW) {
 						this.moveCursorLeft();
+						escapeState = 0;
+						escapeBuffer = '';
+						continue;
 					} else if (char === RIGHT_ARROW) {
 						this.moveCursorRight();
+						escapeState = 0;
+						escapeBuffer = '';
+						continue;
+					} else if (escapeBuffer.endsWith(PAGE_UP) || escapeBuffer.endsWith(PAGE_DOWN)) {
+						// Let these be handled in the next iteration by the layout manager
+						break;
+					} else if (/[0-9;]/.test(char)) {
+						// This could be part of a longer sequence like Shift+arrows
+						continue;
+					} else {
+						// Some other escape sequence we don't handle
+						escapeState = 0;
+						escapeBuffer = '';
 					}
-					escapeState = 0;
-					continue;
 				}
+
 				// Reset escape state if sequence is incomplete
-				if (escapeState > 0) {
+				if (escapeState > 0 && !(/[0-9;[\x1B]/.test(char))) {
 					escapeState = 0;
+					escapeBuffer = '';
 					continue;
 				}
 
 				// Handle regular input
-				if (char === '\r' || char === '\n') {
-					// On enter key, process the command
-					const command = this.buffer.trim();
-					if (command && (!this.history.length || this.history[this.history.length - 1] !== command)) {
-						this.history.push(command);
+				if (escapeState === 0) {
+					if (char === '\r' || char === '\n') {
+						// On enter key, process the command
+						const command = this.buffer.trim();
+						if (command && (!this.history.length || this.history[this.history.length - 1] !== command)) {
+							this.history.push(command);
+						}
+						this.historyIndex = -1;
+						this.tempBuffer = '';
+						this.write('\n'); // Add a newline for command execution
+						this.buffer = '';
+						this.cursorPosition = 0; // Reset cursor position
+						await this.handleInput(command);
+					} else if (char === CTRL_C) {
+						this.write('^C\n');
+						this.buffer = '';
+						this.cursorPosition = 0; // Reset cursor position
+						this.historyIndex = -1;
+						this.showPrompt();
+					} else if (char === '\b' || charCode === 127) { // Backspace (^H or DEL)
+						this.deleteBeforeCursor(); // Use the new cursor-aware deletion
+					} else if (charCode === TAB) { // Tab key
+						this.handleTabCompletion();
+					} else if (char >= ' ') { // Printable characters
+						this.insertAtCursor(char); // Use the new cursor-aware insertion
 					}
-					this.historyIndex = -1;
-					this.tempBuffer = '';
-					this.write('\n'); // Add a newline for command execution
-					this.buffer = '';
-					this.cursorPosition = 0; // Reset cursor position
-					await this.handleInput(command);
-				} else if (char === CTRL_C) {
-					this.write('^C\n');
-					this.buffer = '';
-					this.cursorPosition = 0; // Reset cursor position
-					this.historyIndex = -1;
-					this.showPrompt();
-				} else if (char === '\b' || charCode === 127) { // Backspace (^H or DEL)
-					this.deleteBeforeCursor(); // Use the new cursor-aware deletion
-				} else if (charCode === TAB) { // Tab key
-					this.handleTabCompletion();
-				} else if (char >= ' ') { // Printable characters
-					this.insertAtCursor(char); // Use the new cursor-aware insertion
 				}
 			}
 		}
@@ -470,6 +512,8 @@ export class Shell {
 			colors.formatInfo(`Use '/exit' to quit.`),
 			colors.formatInfo(`Press Tab for command completion.`),
 			colors.formatInfo(`Use arrow keys (↑/↓) for history and (←/→) for cursor navigation.`),
+				colors.formatInfo(`Use PageUp/PageDown or Shift+Arrow keys to scroll through output history.`),
+			colors.formatInfo(`Press ESC to exit scroll mode and return to most recent output.`),
 			colors.border(80),
 		].join('\n') + '\n';
 
