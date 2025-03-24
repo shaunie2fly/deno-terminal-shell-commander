@@ -46,6 +46,7 @@ export class ScreenBuffer {
 
 		// Split content by single newlines
 		const contentLines = processedContent.split('\n');
+		const newLines: string[] = [];
 
 		// Process each line separately
 		for (const line of contentLines) {
@@ -56,29 +57,32 @@ export class ScreenBuffer {
 					if (segments[i].length > 0) {
 						// Add the content segment
 						const wrappedLines = this.wrapText(segments[i], this.region.width);
-						this.lines.push(...wrappedLines);
+						newLines.push(...wrappedLines);
 					}
 
 					// Add an empty line after each segment except the last one
 					if (i < segments.length - 1) {
-						this.lines.push('');
+						newLines.push('');
 					}
 				}
 			} else {
 				// Normal line without double newlines
 				const wrappedLines = this.wrapText(line, this.region.width);
-				this.lines.push(...wrappedLines);
+				newLines.push(...wrappedLines);
 			}
 		}
 
-		// Maintain only as many lines as we need
-		const maxLines = this.region.height * 3; // Keep 3 screens worth of history
+		// Add new lines to the beginning of the buffer for bottom-up scrolling
+		this.lines = [...newLines, ...this.lines];
+
+		// Maintain only as many lines as we need (limit buffer size)
+		const maxLines = this.region.height * 10; // Keep 10 screens worth of history
 		if (this.lines.length > maxLines) {
-			this.lines = this.lines.slice(-maxLines);
+			this.lines = this.lines.slice(0, maxLines);
 		}
 
-		// Auto-scroll to show new content
-		this.viewport.start = Math.max(0, this.lines.length - this.viewport.size);
+		// Always show from the beginning of the buffer (newest content)
+		this.viewport.start = 0;
 	}
 
 	/**
@@ -93,25 +97,26 @@ export class ScreenBuffer {
 	 * Get the content within the current viewport
 	 */
 	getViewportContent(): string[] {
+		// For bottom-up scrolling, return from the start of the viewport
 		return this.lines.slice(
 			this.viewport.start,
-			this.viewport.start + this.viewport.size,
+			this.viewport.start + Math.min(this.viewport.size, this.lines.length),
 		);
 	}
 
 	/**
-	 * Scroll the viewport up
+	 * Scroll the viewport up (show older content)
 	 */
 	scrollUp(lines = 1): void {
-		this.viewport.start = Math.max(0, this.viewport.start - lines);
+		const maxStart = Math.max(0, this.lines.length - this.viewport.size);
+		this.viewport.start = Math.min(maxStart, this.viewport.start + lines);
 	}
 
 	/**
-	 * Scroll the viewport down
+	 * Scroll the viewport down (show newer content)
 	 */
 	scrollDown(lines = 1): void {
-		const maxStart = Math.max(0, this.lines.length - this.viewport.size);
-		this.viewport.start = Math.min(maxStart, this.viewport.start + lines);
+		this.viewport.start = Math.max(0, this.viewport.start - lines);
 	}
 
 	/**
@@ -126,9 +131,7 @@ export class ScreenBuffer {
 		this.lines = this.wrapText(allContent, region.width);
 
 		// Adjust viewport if needed
-		if (this.viewport.start + this.viewport.size > this.lines.length) {
-			this.viewport.start = Math.max(0, this.lines.length - this.viewport.size);
-		}
+		this.viewport.start = Math.min(this.viewport.start, Math.max(0, this.lines.length - this.viewport.size));
 	}
 
 	/**
