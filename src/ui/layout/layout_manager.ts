@@ -215,10 +215,20 @@ export class LayoutManager {
 	 * Scroll output buffer up (show older content)
 	 */
 	scrollOutputUp(lines = 1): void {
+		// Save current viewport start position to check if scrolling actually happened
+		const oldViewportStart = this.outputBuffer.getViewportStart();
+
 		// When scrolling up, we want to show older content (which is now at the beginning of the buffer)
 		this.outputBuffer.scrollUp(lines);
+
+		// Get new position to determine how far we actually scrolled
+		const newViewportStart = this.outputBuffer.getViewportStart();
+
+		// Only increment scroll offset by the actual lines scrolled
+		const actualLinesScrolled = oldViewportStart - newViewportStart;
+		this.scrollOffset += actualLinesScrolled;
+
 		this.isScrolling = true;
-		this.scrollOffset += lines;
 		this.updateScrollIndicator();
 	}
 
@@ -267,7 +277,7 @@ export class LayoutManager {
 	 */
 	handleScrollKeys(key: Uint8Array): boolean {
 		const keyString = new TextDecoder().decode(key);
-		
+
 		// Check for escape key to exit scroll mode
 		if (keyString === '\x1B' && this.isScrolling) {
 			this.resetScroll();

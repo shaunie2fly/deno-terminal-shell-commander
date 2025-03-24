@@ -333,19 +333,22 @@ export class Shell {
 		// Check if command starts with a slash and remove it for execution
 		const commandToExecute = command.startsWith('/') ? command.substring(1) : command;
 
-		// Don't clear output for help command or its variations
+		// Try executing the command first to determine if it exists
+		// We'll only clear the output if the command exists and isn't a help command
 		const isHelpCommand = commandToExecute === 'help' || commandToExecute.startsWith('help ');
 
-		// Only clear output if it's not a help command
-		if (!isHelpCommand) {
-			this.layout.clearOutput();
-		}
-
-		// Try executing the command
+		// Try executing the command without clearing the output
 		const success = await commandRegistry.executeCommand(commandToExecute);
 
-		// Handle command failure
-		if (!success) {
+		// Handle command success or failure
+		if (success) {
+			// Command executed successfully
+			// If it wasn't a help command, we might want to clear for future commands
+			if (!isHelpCommand) {
+				// Don't clear after successful execution, let commands control their own output
+			}
+		} else {
+			// Handle command failure
 			const suggestions = commandRegistry.getSuggestions(commandToExecute);
 			const errorMessage = suggestions.length > 0
 				? colors.formatError('Unknown command', `"${command}"`, `Did you mean "${suggestions[0]}"?`) + '\n'
@@ -418,7 +421,7 @@ export class Shell {
 
 				if (escapeState === 2) {
 					escapeBuffer += char;
-					
+
 					// Check for complete escape sequences
 					if (char === UP_ARROW || char === DOWN_ARROW) {
 						this.handleArrowKey(char);
@@ -512,7 +515,7 @@ export class Shell {
 			colors.formatInfo(`Use '/exit' to quit.`),
 			colors.formatInfo(`Press Tab for command completion.`),
 			colors.formatInfo(`Use arrow keys (↑/↓) for history and (←/→) for cursor navigation.`),
-				colors.formatInfo(`Use PageUp/PageDown or Shift+Arrow keys to scroll through output history.`),
+			colors.formatInfo(`Use PageUp/PageDown or Shift+Arrow keys to scroll through output history.`),
 			colors.formatInfo(`Press ESC to exit scroll mode and return to most recent output.`),
 			colors.border(80),
 		].join('\n') + '\n';
