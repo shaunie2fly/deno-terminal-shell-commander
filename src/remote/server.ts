@@ -16,6 +16,8 @@ export interface ShellServerOptions {
 	// Removed shell property
 	/** TCP port to listen on (optional) */
 	port?: number;
+    /** Default prompt for new shell instances */
+	defaultPrompt?: string; // Added this line correctly
 	/** Host address to bind to (defaults to localhost) */
 	host?: string;
 	/** Unix domain socket path for IPC (optional) */
@@ -55,6 +57,7 @@ export class ShellServer {
 		this.options = {
 			...options,
 			host: options.host || 'localhost',
+            defaultPrompt: options.defaultPrompt || 'remote> ', // Added default prompt handling
 			auth: options.auth || { type: AuthType.NONE },
 			pingInterval: options.pingInterval || 30000,
 			maxConnections: options.maxConnections || 10,
@@ -107,7 +110,7 @@ export class ShellServer {
 	 * Set up a Unix domain socket server
 	 */
 	private async startUnixSocketServer(): Promise<void> {
-		// ... (keep existing implementation)
+		// ... (Existing implementation) ...
 		try {
 			console.log(`[ShellServer] Attempting to remove existing socket file: ${this.options.socketPath}`);
 			try {
@@ -136,7 +139,7 @@ export class ShellServer {
 	 * Set up a TCP server
 	 */
 	private startTcpServer(): Promise<void> {
-		// ... (keep existing implementation)
+		// ... (Existing implementation) ...
         try {
 			console.log(`[ShellServer] Creating TCP listener on: ${this.options.host}:${this.options.port}`);
 			const listener = Deno.listen({
@@ -159,7 +162,7 @@ export class ShellServer {
 	 * Accept connections from a listener
 	 */
 	private async acceptConnections(listener: Deno.Listener): Promise<void> {
-		// ... (keep existing implementation)
+		// ... (Existing implementation) ...
         const addr = listener.addr;
 		console.log(`[ShellServer] Accepting connections on ${addr.transport}://${'hostname' in addr ? addr.hostname + ':' + addr.port : addr.path}...`);
 		for await (const conn of listener) {
@@ -216,7 +219,7 @@ export class ShellServer {
                 console.log(`[ShellServer][Conn ${connectionId}] Disconnecting. Reason: ${reason}`);
 				try {
                     // Stop the associated shell instance first
-                    await connection.shellInstance?.stop();
+                    await connection.shellInstance?.stop(); // Use optional chaining
 
 					// Send disconnect message before closing socket
 					await connection.send({
@@ -244,14 +247,14 @@ export class ShellServer {
 		// Handle messages from this connection
 		try {
 			for await (const chunk of this.readLines(conn)) {
-				console.log(`[ShellServer][Conn ${connectionId}] Received chunk: ${chunk.substring(0, 100)}${chunk.length > 100 ? '...' : ''}`);
+				// console.log(`[ShellServer][Conn ${connectionId}] Received chunk: ${chunk.substring(0, 100)}${chunk.length > 100 ? '...' : ''}`); // Verbose
 				connection.lastActivity = Date.now();
 
 				try {
 					const message = JSON.parse(chunk);
 					const validationResult = ProtocolMessageRT.validate(message);
 
-					console.log(`[ShellServer][Conn ${connectionId}] Parsed message type: ${message.type}`);
+					// console.log(`[ShellServer][Conn ${connectionId}] Parsed message type: ${message.type}`); // Verbose
 					if (!validationResult.success) {
 						console.warn(`[ShellServer][Conn ${connectionId}] Invalid message format received:`, validationResult.message);
 						await connection.send({
@@ -282,10 +285,10 @@ export class ShellServer {
 									// --- Create and Start Shell Instance for this Connection ---
 									shellInstanceForConn = new Shell({ // Create a NEW shell
 									    name: `Remote Shell (${username || connectionId.substring(0, 4)})`,
-									    prompt: undefined, // Explicitly undefined
-									    width: undefined,  // Explicitly undefined
+									    prompt: this.options.defaultPrompt, // Use configured prompt
+									    width:  undefined,  // Explicitly undefined
 									    height: undefined, // Explicitly undefined
-									    commands: undefined // Explicitly undefined
+									    commands:  undefined // Explicitly undefined
 									});
                                     connection.shellInstance = shellInstanceForConn; // Store it on the connection
 
@@ -297,7 +300,8 @@ export class ShellServer {
 									};
 
 									const processInput = async (command: string) => {
-                                        if (connection.shellInstance) { // Ensure shell still exists
+                                        // Pass command to the connection's specific shell instance
+                                        if (connection.shellInstance) {
 										    await connection.shellInstance.executeCommand(command);
                                         }
 									};
@@ -305,10 +309,12 @@ export class ShellServer {
                                     // Listen for the STOP event *on this specific shell instance*
                                     shellInstanceForConn.on(ShellEventType.STOP, () => {
                                         console.log(`[ShellServer][Conn ${connectionId}] Shell instance stopped. Disconnecting client.`);
-                                        connection.disconnect('Shell exited'); // Disconnect this specific client
+                                        // Use a non-awaited call to avoid blocking message loop if disconnect takes time
+                                        connection.disconnect('Shell exited').catch(err => console.error(`Error during disconnect on shell stop:`, err));
                                     });
 
 									await shellInstanceForConn.start(processInput, sendOutput);
+                                    console.log(`[ShellServer][Conn ${connectionId}] Shell instance started.`);
                                     // --- Shell instance started ---
 								}
                                 // Send Auth Response
@@ -384,10 +390,10 @@ export class ShellServer {
             console.log(`[ShellServer][Conn ${connectionId}] Read loop finished. Cleaning up connection.`);
 			if (this.connections.has(connectionId)) {
                 // Ensure disconnection logic runs if not already disconnected
-				await connection.disconnect('Connection closed or read loop exited');
+				await connection.disconnect('Connection closed or read loop exited'); // This now also stops the shell
 			}
-            // Ensure shell instance associated with this connection is stopped
-            await shellInstanceForConn?.stop(); // Use the local variable
+            // No need to call shellInstanceForConn?.stop() here anymore,
+            // as connection.disconnect() handles it.
 		}
 	}
 
@@ -396,9 +402,9 @@ export class ShellServer {
 	 * Helper method to read messages line by line from a connection
 	 */
 	private async *readLines(conn: Deno.Conn): AsyncGenerator<string> {
-		// ... (keep existing implementation)
+		// ... (Existing implementation with error handling) ...
         const buf = new Uint8Array(1024);
-		console.log(`[ShellServer][readLines] Starting generator for a connection.`); // Simplified log
+		// console.log(`[ShellServer][readLines] Starting generator for a connection.`); // Simplified log
 		let leftover = '';
 
 		while (true) {
@@ -406,9 +412,8 @@ export class ShellServer {
             try {
 			    n = await conn.read(buf);
             } catch (readErr) {
-                // Handle immediate read errors (e.g., connection reset)
                 console.error(`[ShellServer][readLines] Read error:`, readErr);
-                break; // Exit generator on read error
+                break;
             }
 
 			if (n === null) {
@@ -427,7 +432,6 @@ export class ShellServer {
 			}
 		}
 
-		// Process any remaining data when the connection closes
 		if (leftover.trim()) {
 			console.log(`[ShellServer][readLines] Yielding leftover data: ${leftover.substring(0, 100)}${leftover.length > 100 ? '...' : ''}`);
 			yield leftover;
@@ -444,7 +448,7 @@ export class ShellServer {
 		password?: string;
 		token?: string;
 	}): Promise<{ success: boolean; error?: string }> {
-		// ... (keep existing implementation)
+		// ... (Existing implementation) ...
         console.log(`[ShellServer] Authenticating connection... AuthType provided: ${payload.authType}`);
 		const serverAuthType = this.options.auth?.type || AuthType.NONE;
 
@@ -510,7 +514,7 @@ export class ShellServer {
 	 * A simple password hashing function
 	 */
 	private async hashPassword(password: string): Promise<string> {
-		// ... (keep existing implementation)
+		// ... (Existing implementation) ...
         console.log('[ShellServer] Hashing password...');
 		const encoder = new TextEncoder();
 		const data = encoder.encode(password);
@@ -528,14 +532,14 @@ export class ShellServer {
 		connectionId: string,
 		error: unknown,
 	): Promise<void> {
-		// ... (keep existing implementation, it already calls disconnect)
+		// ... (Existing implementation) ...
         const errorMsg = error instanceof Error ? error.message : String(error);
 		console.error(`[ShellServer][Conn ${connectionId}] Connection error:`, errorMsg);
 		const connection = this.connections.get(connectionId);
 		if (connection) {
 			console.log(`[ShellServer][Conn ${connectionId}] Emitting ERROR event and disconnecting due to error.`);
 			this.emitEvent(ServerEvent.ERROR, { connectionId, error: errorMsg });
-			await connection.disconnect('Connection error'); // disconnect handles cleanup
+			await connection.disconnect('Connection error');
 		} else {
 			console.warn(`[ShellServer][Conn ${connectionId}] Connection error for non-existent/already removed connection.`);
 		}
@@ -545,7 +549,7 @@ export class ShellServer {
 	 * Start the ping interval to keep connections alive
 	 */
 	private startPingInterval(): void {
-		// ... (keep existing implementation)
+		// ... (Existing implementation) ...
         console.log(`[ShellServer] Starting ping interval (${this.options.pingInterval}ms).`);
 		if (this.pingIntervalId) {
 			clearInterval(this.pingIntervalId);
@@ -554,7 +558,7 @@ export class ShellServer {
 
 		this.pingIntervalId = setInterval(() => {
 			const now = Date.now();
-			for (const connection of this.connections.values()) { // Iterate directly over values
+			for (const connection of this.connections.values()) {
 				if (now - connection.lastActivity > this.options.pingInterval! * 2) {
 					console.warn(`[ShellServer][Conn ${connection.id}] Connection timed out. Disconnecting.`);
 					connection.disconnect('Connection timeout').catch(() => {/* ignore */});
@@ -575,7 +579,7 @@ export class ShellServer {
 	 * Stop the shell server
 	 */
 	public async stop(): Promise<void> {
-		// ... (keep existing implementation)
+		// ... (Existing implementation) ...
         console.log('[ShellServer] Stopping server...');
 		if (!this.isRunning) {
 			console.warn('[ShellServer] Stop called but server is not running.');
@@ -590,7 +594,7 @@ export class ShellServer {
 		}
 
 		console.log('[ShellServer] Disconnecting all clients...');
-		await this.disconnectAll(); // This now also stops individual shell instances
+		await this.disconnectAll();
 
 		if (this.server) {
 			console.log('[ShellServer] Closing server listener...');
@@ -615,9 +619,9 @@ export class ShellServer {
 	 * Disconnect all connected clients
 	 */
 	public async disconnectAll(): Promise<void> {
-        // ... (implementation now implicitly stops shells via connection.disconnect)
+        // ... (Existing implementation) ...
         const disconnectPromises: Promise<void>[] = [];
-		const connectionIds = Array.from(this.connections.keys()); // Get IDs before iterating/modifying
+		const connectionIds = Array.from(this.connections.keys());
 		console.log(`[ShellServer] Disconnecting ${connectionIds.length} client(s)...`);
 
 		for (const connectionId of connectionIds) {
@@ -625,7 +629,7 @@ export class ShellServer {
 			if (connection) {
                 console.log(`[ShellServer][Conn ${connection.id}] Adding disconnect promise.`);
 			    disconnectPromises.push(
-			    	connection.disconnect('Server shutting down').catch((err) => { // disconnect now stops shell
+			    	connection.disconnect('Server shutting down').catch((err) => {
 			    		console.error(`[ShellServer][Conn ${connection.id}] Error during disconnectAll disconnect (ignored):`, err);
 			    	}),
 			    );
@@ -633,7 +637,6 @@ export class ShellServer {
 		}
 		await Promise.all(disconnectPromises);
 		console.log(`[ShellServer] All disconnect promises settled.`);
-        // Connections map should be empty now due to disconnect logic
         if (this.connections.size > 0) {
              console.warn(`[ShellServer] Connections map not empty after disconnectAll (${this.connections.size} remaining). Force clearing.`);
              this.connections.clear();
@@ -645,7 +648,7 @@ export class ShellServer {
 	 * Get a list of all active connections
 	 */
 	public getConnections(): Connection[] {
-		// ... (keep existing implementation)
+		// ... (Existing implementation) ...
         console.log(`[ShellServer] getConnections called. Returning ${this.connections.size} connection(s).`);
 		return Array.from(this.connections.values());
 	}
@@ -654,7 +657,7 @@ export class ShellServer {
 	 * Register an event handler
 	 */
 	public on(event: ServerEvent, handler: (payload: unknown) => void): void {
-		// ... (keep existing implementation)
+		// ... (Existing implementation) ...
         console.log(`[ShellServer] Registering handler for event: ${event}`);
 		this.eventEmitter.on(event, handler);
 	}
@@ -663,7 +666,7 @@ export class ShellServer {
 	 * Unregister an event handler
 	 */
 	public off(event: ServerEvent, handler: (payload: unknown) => void): void {
-		// ... (keep existing implementation)
+		// ... (Existing implementation) ...
         console.log(`[ShellServer] Unregistering handler for event: ${event}`);
 		this.eventEmitter.off(event, handler);
 	}
@@ -672,7 +675,7 @@ export class ShellServer {
 	 * Emit an event
 	 */
 	private emitEvent(event: ServerEvent, payload: unknown): void {
-		// ... (keep existing implementation)
+		// ... (Existing implementation) ...
         const payloadSummary = JSON.stringify(payload)?.substring(0, 100) || 'undefined';
 		console.log(`[ShellServer] Emitting event: ${event}. Payload summary: ${payloadSummary}${payloadSummary.length === 100 ? '...' : ''}`);
 		this.eventEmitter.emit(event, payload);

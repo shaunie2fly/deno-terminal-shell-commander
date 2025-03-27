@@ -56,7 +56,7 @@ export class ShellClient {
 	 * @param options - Configuration options for the client
 	 */
 	constructor(options: ShellClientOptions) {
-	// console.log('[ShellClient] Creating instance with options:', options);
+	console.log('[ShellClient] Creating instance with options:', options);
 		// Set defaults for optional parameters
 		this.options = {
 			...options,
@@ -75,7 +75,7 @@ export class ShellClient {
 		// Input from client application -> inputStream -> processInputStream -> server
 		this.inputStream = new TransformStream<string, string>();
 		this.inputReader = this.inputStream.readable.getReader();
-		// console.log('[ShellClient] Instance created and streams initialized.');
+		console.log('[ShellClient] Instance created and streams initialized.');
 }
 
 	/**
@@ -84,11 +84,11 @@ export class ShellClient {
 	 */
 	public async connect(): Promise<void> {
 		if (this.connected) {
-		// console.log('[ShellClient.connect] Already connected.');
+		console.log('[ShellClient.connect] Already connected.');
   return;
  }
 
-	// console.log('[ShellClient.connect] Attempting connection...');
+	console.log('[ShellClient.connect] Attempting connection...');
 		try {
 			// Establish connection based on the connection type
 			if (this.options.connectionType === 'unix' && this.options.socketPath) {
@@ -102,7 +102,7 @@ export class ShellClient {
 				throw new Error('Invalid connection options: must specify port for TCP or socketPath for Unix');
 			}
 
-	// console.log('[ShellClient.connect] Connection established.');
+	console.log('[ShellClient.connect] Connection established.');
 			this.connected = true;
 			this.reconnectAttempts = 0;
 
@@ -113,7 +113,7 @@ export class ShellClient {
 			if (this.options.auth) {
 				await this.authenticate(); // This emits CONNECT event on success
 			} else {
-		// console.log('[ShellClient.connect] No authentication required. Emitting CONNECT event.');
+		console.log('[ShellClient.connect] No authentication required. Emitting CONNECT event.');
 				// No authentication needed
 				this.authenticated = true;
 				this.emitEvent(ClientEvent.CONNECT, { authenticated: true });
@@ -140,7 +140,7 @@ export class ShellClient {
 	 * Connect via Unix domain socket
 	 */
 	private async connectUnixSocket(): Promise<void> {
-	// console.log('[ShellClient.connectUnixSocket] Attempting connection...');
+	console.log('[ShellClient.connectUnixSocket] Attempting connection...');
 		try {
 			const conn = await Deno.connect({
 				path: this.options.socketPath!,
@@ -157,7 +157,7 @@ export class ShellClient {
 	 * Connect via TCP
 	 */
 	private async connectTcp(): Promise<void> {
-	// console.log('[ShellClient.connectTcp] Attempting connection...');
+	console.log('[ShellClient.connectTcp] Attempting connection...');
 		try {
 			const conn = await Deno.connect({
 				hostname: this.options.host,
@@ -174,7 +174,7 @@ export class ShellClient {
 	 * Authenticate with the server
 	 */
 	private async authenticate(): Promise<void> {
-	// console.log('[ShellClient.authenticate] Starting authentication...');
+	console.log('[ShellClient.authenticate] Starting authentication...');
 		const authType = this.getAuthType();
 
 		const authRequest: ProtocolMessage = {
@@ -222,15 +222,15 @@ export class ShellClient {
 	 * Determine the authentication type based on provided credentials
 	 */
 	private getAuthType(): AuthType {
-	// console.log('[ShellClient.getAuthType] Determining authentication type...');
+	console.log('[ShellClient.getAuthType] Determining authentication type...');
  if (this.options.auth?.token) {
-		// console.log('[ShellClient.getAuthType] Using TOKEN authentication.');
+		console.log('[ShellClient.getAuthType] Using TOKEN authentication.');
   return AuthType.TOKEN;
  } else if (this.options.auth?.username && this.options.auth?.password) {
-		// console.log('[ShellClient.getAuthType] Using BASIC authentication.');
+		console.log('[ShellClient.getAuthType] Using BASIC authentication.');
   return AuthType.BASIC;
  } else {
-		// console.log('[ShellClient.getAuthType] Using NONE authentication.');
+		console.log('[ShellClient.getAuthType] Using NONE authentication.');
 			return AuthType.NONE;
 		}
 	}
@@ -239,7 +239,7 @@ export class ShellClient {
 	 * Process incoming messages from the server (runs in background)
 	 */
 	private async processMessages(): Promise<void> {
-	// console.log('[ShellClient.processMessages] Starting message processing loop.');
+	console.log('[ShellClient.processMessages] Starting message processing loop.');
  if (!this.connection) {
 		console.error('[ShellClient.processMessages] No connection available. Aborting.');
 			return; // Should not happen if called correctly after connect
@@ -253,7 +253,7 @@ export class ShellClient {
 			while (this.connected) {
    const n = await conn.read(buffer);
    if (n === null) {
-			// console.log('[ShellClient.processMessages] Connection closed by peer (read returned null).');
+			console.log('[ShellClient.processMessages] Connection closed by peer (read returned null).');
     this.handleDisconnect('End of stream');
     break;
    }
@@ -274,10 +274,10 @@ export class ShellClient {
 			    this.handleConnectionError(error);
 		        console.error('[ShellClient.processMessages] Error during message processing:', error);
 			} else {
-				// console.log('[ShellClient.processMessages] Ignoring read error on already disconnected client.');
+				console.log('[ShellClient.processMessages] Ignoring read error on already disconnected client.');
 			}
 		} finally {
-			// console.log('[ShellClient.processMessages] Exiting message processing loop.');
+			console.log('[ShellClient.processMessages] Exiting message processing loop.');
 		}
 	}
 
@@ -292,7 +292,7 @@ export class ShellClient {
 			const validationResult = ProtocolMessageRT.validate(message);
 
 			if (!validationResult.success) {
-		console.warn('[ShellClient.handleMessage] Invalid message format received:', validationResult.message, 'Original text:', messageText);
+		// console.warn('[ShellClient.handleMessage] Invalid message format received:', validationResult.message, 'Original text:', messageText);
 				this.emitEvent(ClientEvent.ERROR, {
 					message: 'Invalid message format',
 					details: validationResult.message,
@@ -306,7 +306,7 @@ export class ShellClient {
 	// console.log(`[ShellClient.handleMessage] Processing message type: ${validatedMessage.type}, ID: ${validatedMessage.id}`);
 			switch (validatedMessage.type) {
 				case MessageType.AUTH_RESPONSE:
-		// console.log('[ShellClient.handleMessage] Resolving promise for AUTH_RESPONSE.');
+		console.log('[ShellClient.handleMessage] Resolving promise for AUTH_RESPONSE.');
 					this.resolvePromise(validatedMessage);
 					break;
 
@@ -356,7 +356,7 @@ export class ShellClient {
 					break;
 
 				case MessageType.PING:
-		// console.log('[ShellClient.handleMessage] Received PING, sending PONG.');
+		console.log('[ShellClient.handleMessage] Received PING, sending PONG.');
 					// Respond with pong
 					this.sendMessage({
 						id: crypto.randomUUID(),
@@ -374,7 +374,7 @@ export class ShellClient {
 
                 // INPUT messages are sent *by* the client, not received
 				// case MessageType.INPUT:
-				//	 console.warn('[ShellClient.handleMessage] Received INPUT message unexpectedly.');
+				//	 // console.warn('[ShellClient.handleMessage] Received INPUT message unexpectedly.');
 				//	 break;
 
    default:
@@ -557,7 +557,7 @@ export class ShellClient {
 	private handleDisconnect(reason: string): void {
 	// console.log(`[ShellClient.handleDisconnect] Handling disconnection. Reason: ${reason}`);
  if (!this.connected) {
-		// // console.log('[ShellClient.handleDisconnect] Already disconnected.'); // Can be verbose
+		// console.log('[ShellClient.handleDisconnect] Already disconnected.'); // Can be verbose
 			return;
 		}
 
@@ -568,11 +568,11 @@ export class ShellClient {
 		// Close the connection if it's still open
 		if (this.connection) {
 			try {
-		// console.log('[ShellClient.handleDisconnect] Closing underlying connection.');
+		console.log('[ShellClient.handleDisconnect] Closing underlying connection.');
    this.connection.close();
   } catch {
    // Ignore errors during close
-		console.warn('[ShellClient.handleDisconnect] Error ignored during connection close.');
+		// console.warn('[ShellClient.handleDisconnect] Error ignored during connection close.');
   }
   this.connection = undefined;
  }
@@ -591,7 +591,7 @@ export class ShellClient {
 
 
 		// Emit disconnect event
-	// console.log('[ShellClient.handleDisconnect] Emitting DISCONNECT event.');
+	console.log('[ShellClient.handleDisconnect] Emitting DISCONNECT event.');
 		this.emitEvent(ClientEvent.DISCONNECT, { reason });
 
 		// Attempt reconnection if enabled
@@ -609,7 +609,7 @@ export class ShellClient {
 	private scheduleReconnect(): void {
 	// console.log(`[ShellClient.scheduleReconnect] Scheduling reconnection attempt ${this.reconnectAttempts + 1}...`);
  if (this.reconnectTimeoutId) {
-		// console.log('[ShellClient.scheduleReconnect] Clearing existing reconnect timeout.');
+		console.log('[ShellClient.scheduleReconnect] Clearing existing reconnect timeout.');
   clearTimeout(this.reconnectTimeoutId);
  }
 
@@ -635,15 +635,15 @@ export class ShellClient {
 	 * Disconnect from the server manually
 	 */
 	public async disconnect(): Promise<void> {
-	// console.log('[ShellClient.disconnect] Manual disconnect initiated.');
+	console.log('[ShellClient.disconnect] Manual disconnect initiated.');
  if (!this.connected) {
-		// console.log('[ShellClient.disconnect] Already disconnected.');
+		console.log('[ShellClient.disconnect] Already disconnected.');
 			return;
 		}
 
 		// Cancel any pending reconnection attempts
 		if (this.reconnectTimeoutId) {
-		// console.log('[ShellClient.disconnect] Cancelling scheduled reconnect.');
+		console.log('[ShellClient.disconnect] Cancelling scheduled reconnect.');
 			clearTimeout(this.reconnectTimeoutId);
 			this.reconnectTimeoutId = undefined;
 		}
@@ -653,7 +653,7 @@ export class ShellClient {
 		// Send a disconnect message if authenticated and connected
 		if (this.authenticated && this.connection) {
 			try {
-		// console.log('[ShellClient.disconnect] Sending DISCONNECT message to server.');
+		console.log('[ShellClient.disconnect] Sending DISCONNECT message to server.');
 				await this.sendMessage({
 					id: crypto.randomUUID(),
 					type: MessageType.DISCONNECT,
@@ -663,12 +663,12 @@ export class ShellClient {
 					},
 				});
 			} catch (error){
-		console.warn('[ShellClient.disconnect] Error sending disconnect message (proceeding with local disconnect):', error);
+		// console.warn('[ShellClient.disconnect] Error sending disconnect message (proceeding with local disconnect):', error);
 				// Ignore errors during disconnect message, still perform local cleanup
 			}
 		}
 
-		// console.log('[ShellClient.disconnect] Performing local disconnect cleanup.');
+		console.log('[ShellClient.disconnect] Performing local disconnect cleanup.');
 		// Trigger the local disconnection process
 		this.handleDisconnect('Client disconnected');
 	}
@@ -695,18 +695,23 @@ export class ShellClient {
 		this.eventEmitter.emit(event, payload);
 	}
 
+    /** Returns the current connection status */
+	public get isConnected(): boolean {
+		return this.connected;
+	}
+
 	/**
 	 * Reads data from the input stream (written by the client app) and sends it to the server via sendInput.
 	 * This runs continuously after connection.
 	 */
 	private async processInputStream(): Promise<void> {
-		// console.log('[ShellClient.processInputStream] Starting input stream processing loop.');
+		console.log('[ShellClient.processInputStream] Starting input stream processing loop.');
 		try {
 			while (this.connected) {
 				// Read data written to the client's internal input stream
 				const { value, done } = await this.inputReader.read();
 				if (done) {
-					// console.log('[ShellClient.processInputStream] Input stream closed by writer.');
+					console.log('[ShellClient.processInputStream] Input stream closed by writer.');
 					// Optional: Signal end-of-input to server if protocol supports it
 					// await this.sendInput('<EOF>'); // Example, depends on server handling
 					break;
@@ -716,7 +721,7 @@ export class ShellClient {
 					await this.sendInput(value);
 				} else if (value) {
 					// Handle non-string or empty values if necessary
-					console.warn('[ShellClient.processInputStream] Received non-string or empty value from input stream:', value);
+					// console.warn('[ShellClient.processInputStream] Received non-string or empty value from input stream:', value);
 				}
 			}
 		} catch (error) {
@@ -726,7 +731,7 @@ export class ShellClient {
 				this.handleConnectionError(error);
 			}
 		} finally {
-			// console.log('[ShellClient.processInputStream] Exiting input stream processing loop.');
+			console.log('[ShellClient.processInputStream] Exiting input stream processing loop.');
 			// Ensure the reader lock is released if the loop exits unexpectedly
 			// It's often better to let the stream manage its own state, but
 			// explicitly releasing might be needed in some error scenarios.
