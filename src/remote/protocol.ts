@@ -190,6 +190,8 @@ export type ProtocolMessage =
 /**
  * Connection interface for tracking active connections on the server
  */
+import type { Shell } from '../shell/Shell.ts'; // Import Shell type
+
 export interface Connection {
 	id: string;
 	username?: string;
@@ -198,6 +200,7 @@ export interface Connection {
 	lastActivity: number;
 	send: (message: ProtocolMessage) => Promise<void>;
 	disconnect: (reason: string) => Promise<void>;
+	shellInstance?: Shell; // Add property to hold the shell instance for this connection
 }
 
 /**
