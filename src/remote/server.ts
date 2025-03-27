@@ -7,6 +7,7 @@
 import { EventEmitter } from 'node:events';
 import { Shell } from '../shell/Shell.ts';
 import { AuthOptions, AuthType, Connection, InputMessage, MessageType, ProtocolMessage, ProtocolMessageRT, ServerEvent } from './protocol.ts'; // Added InputMessage
+import { ShellEventType } from '../shell/types.ts'; // Import ShellEventType
 
 /**
  * Configuration options for the shell server
@@ -97,6 +98,21 @@ export class ShellServer {
 			console.log('[ShellServer] Server started successfully.');
 			// Start the ping interval to keep connections alive
 			this.startPingInterval();
+
+			// --- Listen for Shell Stop Event (for shared shell) ---
+			// If the shared shell stops (e.g., via 'exit'), disconnect all clients.
+			// Note: This assumes a single shared shell instance.
+			// A multi-shell-instance design would need per-connection listeners.
+			this.shell.on(ShellEventType.STOP, () => {
+				console.log('[ShellServer] Shared shell instance stopped. Disconnecting all clients...');
+				this.disconnectAll().catch(err => {
+					console.error('[ShellServer] Error during disconnectAll after shell stop:', err);
+				});
+				// Optionally, consider stopping the server itself if the shell stopping means the server should shut down.
+				// this.stop();
+			});
+			// -------------------------------------------------------
+
 		} catch (error) {
 			console.error('[ShellServer] Failed to start server:', error);
 			this.isRunning = false;
