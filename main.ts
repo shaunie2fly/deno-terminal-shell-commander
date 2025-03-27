@@ -110,7 +110,7 @@ serviceSubcommands.set("status", {
 // Add state management subcommands
 serviceSubcommands.set("state", {
   description: "Display detailed service state",
-  action: async (...args: string[]) => {
+  action: (...args: string[]) => {
     const name = args[0];
     if (name) {
       // Show state for a specific service

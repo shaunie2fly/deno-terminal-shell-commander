@@ -1,4 +1,4 @@
-import { ServiceCommand, ServiceConfig, ServiceStatus } from '../services.ts';
+import { ServiceCommand, ServiceConfig } from '../services.ts';
 import { type BackgroundTask, taskManager, TaskStatus } from '../tasks.ts';
 import { outputManager } from '../output/stream.ts';
 

@@ -50,7 +50,7 @@ export class TaskManager {
     this.tasks.set(task.id, task);
     
     // Setup progress tracking
-    task.onProgress((progress: number) => {
+    task.onProgress((_progress: number) => {
       this.notifyListeners("progress", task);
     });
 
