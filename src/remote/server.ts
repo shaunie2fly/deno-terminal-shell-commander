@@ -4,18 +4,20 @@
  * Provides a server that exposes shell instances for remote access
  * @module
  */
-import { EventEmitter } from '@std/events';
+import { EventEmitter } from 'node:events';
 import { Shell } from '../shell/Shell.ts';
-import { AuthOptions, AuthType, Connection, MessageType, ProtocolMessage, ProtocolMessageRT, ServerEvent } from './protocol.ts';
+import { AuthOptions, AuthType, Connection, InputMessage, MessageType, ProtocolMessage, ProtocolMessageRT, ServerEvent } from './protocol.ts';
+import { ShellEventType } from '../shell/types.ts'; // Keep this import
 
 /**
  * Configuration options for the shell server
  */
 export interface ShellServerOptions {
-	/** The shell instance to expose */
-	shell: Shell;
+	// Removed shell property
 	/** TCP port to listen on (optional) */
 	port?: number;
+    /** Default prompt for new shell instances */
+	defaultPrompt?: string; // Added this line correctly
 	/** Host address to bind to (defaults to localhost) */
 	host?: string;
 	/** Unix domain socket path for IPC (optional) */
@@ -26,18 +28,19 @@ export interface ShellServerOptions {
 	pingInterval?: number;
 	/** Maximum number of connections (defaults to 10) */
 	maxConnections?: number;
+    // TODO: Add options for configuring newly created Shell instances (e.g., name, base commands)
 }
 
 /**
  * Server for exposing shell instances over network protocols
  */
 export class ShellServer {
-	private shell: Shell;
+	// Removed private shell property
 	private options: ShellServerOptions;
 	private connections: Map<string, Connection> = new Map();
 	private eventEmitter = new EventEmitter();
 	private pingIntervalId?: number;
-	private server?: Deno.Listener | Deno.HttpServer;
+	private server?: Deno.Listener;
 	private startTime = Date.now();
 	private isRunning = false;
 
@@ -46,21 +49,21 @@ export class ShellServer {
 	 * @param options - Configuration options for the server
 	 */
 	constructor(options: ShellServerOptions) {
-		// Validate required options
-		if (!options.shell) {
-			throw new Error('Shell instance is required');
-		}
+		// Validate required options (port or socketPath needed later in start)
+		console.log('[ShellServer] Initializing with options:', options);
+		// Removed shell instance validation/assignment
 
 		// Set defaults for optional parameters
 		this.options = {
 			...options,
 			host: options.host || 'localhost',
+            defaultPrompt: options.defaultPrompt || 'remote> ', // Added default prompt handling
 			auth: options.auth || { type: AuthType.NONE },
 			pingInterval: options.pingInterval || 30000,
 			maxConnections: options.maxConnections || 10,
 		};
 
-		this.shell = options.shell;
+		console.log('[ShellServer] Final configuration:', this.options);
 	}
 
 	/**
@@ -69,26 +72,35 @@ export class ShellServer {
 	 */
 	public async start(): Promise<void> {
 		if (this.isRunning) {
+			console.warn('[ShellServer] Start called but server is already running.');
 			throw new Error('Server is already running');
 		}
 
-		// Record start time for uptime tracking
+		console.log('[ShellServer] Starting server...');
 		this.startTime = Date.now();
 		this.isRunning = true;
 
 		try {
 			// Setup the server based on configuration
 			if (this.options.socketPath) {
+				console.log(`[ShellServer] Starting Unix socket server at: ${this.options.socketPath}`);
 				await this.startUnixSocketServer();
 			} else if (this.options.port) {
+				console.log(`[ShellServer] Starting TCP server on: ${this.options.host}:${this.options.port}`);
 				await this.startTcpServer();
 			} else {
+				console.error('[ShellServer] Error: Either port or socketPath must be specified');
 				throw new Error('Either port or socketPath must be specified');
 			}
 
+			console.log('[ShellServer] Server started successfully.');
 			// Start the ping interval to keep connections alive
 			this.startPingInterval();
+
+            // Removed global shell stop listener - now handled per connection
+
 		} catch (error) {
+			console.error('[ShellServer] Failed to start server:', error);
 			this.isRunning = false;
 			throw error;
 		}
@@ -98,15 +110,17 @@ export class ShellServer {
 	 * Set up a Unix domain socket server
 	 */
 	private async startUnixSocketServer(): Promise<void> {
+		// ... (Existing implementation) ...
 		try {
-			// Attempt to remove any existing socket file
+			console.log(`[ShellServer] Attempting to remove existing socket file: ${this.options.socketPath}`);
 			try {
 				await Deno.remove(this.options.socketPath!);
+				console.log(`[ShellServer] Removed existing socket file: ${this.options.socketPath}`);
 			} catch {
-				// Ignore errors if the file doesn't exist
+				console.log(`[ShellServer] No existing socket file found or removal failed (ignored): ${this.options.socketPath}`);
 			}
 
-			// Create the Unix domain socket server
+			console.log(`[ShellServer] Creating Unix domain socket listener at: ${this.options.socketPath}`);
 			const listener = Deno.listen({
 				path: this.options.socketPath!,
 				transport: 'unix',
@@ -114,7 +128,9 @@ export class ShellServer {
 
 			this.server = listener;
 			this.acceptConnections(listener);
+			console.log(`[ShellServer] Unix socket server listening at: ${this.options.socketPath}`);
 		} catch (error) {
+			console.error(`[ShellServer] Failed to start Unix socket server at ${this.options.socketPath}:`, error);
 			throw new Error(`Failed to start Unix socket server: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
@@ -123,8 +139,9 @@ export class ShellServer {
 	 * Set up a TCP server
 	 */
 	private startTcpServer(): Promise<void> {
-		try {
-			// Create TCP server
+		// ... (Existing implementation) ...
+        try {
+			console.log(`[ShellServer] Creating TCP listener on: ${this.options.host}:${this.options.port}`);
 			const listener = Deno.listen({
 				port: this.options.port!,
 				hostname: this.options.host,
@@ -133,28 +150,10 @@ export class ShellServer {
 			this.server = listener;
 			this.acceptConnections(listener);
 
-			// Also set up a WebSocket server on the same port
-			const _httpServer = Deno.serve({
-				port: this.options.port! + 1, // Use adjacent port for WebSockets
-				hostname: this.options.host,
-				onListen: () => {
-					console.log(`WebSocket server listening on ${this.options.host}:${this.options.port! + 1}`);
-				},
-			}, (request) => {
-				// Check if it's a WebSocket upgrade request
-				if (request.headers.get("upgrade") === "websocket") {
-					const { socket, response } = Deno.upgradeWebSocket(request);
-					this.handleWebSocketConnection(socket);
-					return response;
-				}
-				
-				// Return a simple response for non-WebSocket requests
-				return new Response("Shell WebSocket Server", { status: 200 });
-			});
-			
-			// Return a resolved promise as this function is expected to return Promise<void>
+			console.log(`[ShellServer] TCP server listening on: ${this.options.host}:${this.options.port}`);
 			return Promise.resolve();
 		} catch (error) {
+			console.error(`[ShellServer] Failed to start TCP server on ${this.options.host}:${this.options.port}:`, error);
 			throw new Error(`Failed to start TCP server: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
@@ -163,25 +162,37 @@ export class ShellServer {
 	 * Accept connections from a listener
 	 */
 	private async acceptConnections(listener: Deno.Listener): Promise<void> {
+		// ... (Existing implementation) ...
+        const addr = listener.addr;
+		console.log(`[ShellServer] Accepting connections on ${addr.transport}://${'hostname' in addr ? addr.hostname + ':' + addr.port : addr.path}...`);
 		for await (const conn of listener) {
-			// Check if we've reached the maximum number of connections
+			const remoteAddr = conn.remoteAddr;
+			const remoteAddrString = `${remoteAddr.transport}://${'hostname' in remoteAddr ? remoteAddr.hostname + ':' + remoteAddr.port : 'unix'}`;
+			console.log(`[ShellServer] Incoming connection from: ${remoteAddrString}`);
 			if (this.connections.size >= this.options.maxConnections!) {
+				console.warn(`[ShellServer] Max connections (${this.options.maxConnections}) reached. Rejecting connection from ${remoteAddrString}.`);
 				conn.close();
 				continue;
 			}
 
-			// Handle the new connection
-			this.handleConnection(conn);
+			console.log(`[ShellServer] Accepting connection from: ${remoteAddrString}`);
+			this.handleConnection(conn); // Do not await, handle each connection concurrently
 		}
+		console.log(`[ShellServer] Stopped accepting connections on ${addr.transport}://${'hostname' in addr ? addr.hostname + ':' + addr.port : addr.path}.`);
 	}
 
 	/**
-	 * Handle a new TCP connection
+	 * Handle a new connection, creating a Shell instance for it.
 	 */
 	private async handleConnection(conn: Deno.Conn): Promise<void> {
 		const connectionId = crypto.randomUUID();
+		const remoteAddr = conn.remoteAddr;
+		const remoteAddrString = `${remoteAddr.transport}://${'hostname' in remoteAddr ? remoteAddr.hostname + ':' + remoteAddr.port : 'unix'}`;
+		console.log(`[ShellServer][Conn ${connectionId}] Handling new connection from ${remoteAddrString}`);
+
 		let authenticated = this.options.auth?.type === AuthType.NONE;
 		let username: string | undefined;
+        let shellInstanceForConn: Shell | undefined; // Variable to hold the shell for this connection
 
 		// Create a connection object to track this connection
 		const connection: Connection = {
@@ -190,482 +201,223 @@ export class ShellServer {
 			connected: true,
 			connectedAt: Date.now(),
 			lastActivity: Date.now(),
+            shellInstance: undefined, // Initialize as undefined
 			send: async (message: ProtocolMessage) => {
+				if (!connection.connected) return; // Don't send if already disconnected
 				try {
 					const data = new TextEncoder().encode(JSON.stringify(message) + '\n');
 					await conn.write(data);
 				} catch (error) {
+					// Error during send likely means connection issue
 					await this.handleConnectionError(connectionId, error);
 				}
 			},
 			disconnect: async (reason: string) => {
+                if (!connection.connected) return; // Prevent double disconnects
+                connection.connected = false; // Mark as disconnected immediately
+
+                console.log(`[ShellServer][Conn ${connectionId}] Disconnecting. Reason: ${reason}`);
 				try {
-					// Send disconnect message before closing
+                    // Stop the associated shell instance first
+                    await connection.shellInstance?.stop(); // Use optional chaining
+
+					// Send disconnect message before closing socket
 					await connection.send({
 						id: crypto.randomUUID(),
 						type: MessageType.DISCONNECT,
 						timestamp: Date.now(),
 						payload: { reason },
 					});
-					conn.close();
-				} catch {
-					// Ignore errors during disconnect
+                    conn.close(); // Close the underlying Deno connection
+				} catch (err){
+					console.warn(`[ShellServer][Conn ${connectionId}] Error during disconnect sequence (ignoring):`, err);
+                    try { conn.close(); } catch { /* ensure close */ } // Force close if send failed
 				} finally {
 					this.connections.delete(connectionId);
+					console.log(`[ShellServer][Conn ${connectionId}] Connection closed and removed.`);
 					this.emitEvent(ServerEvent.DISCONNECT, { connectionId, reason });
 				}
 			},
 		};
 
-		// Store the connection
 		this.connections.set(connectionId, connection);
-
-		// Emit connection event
+		console.log(`[ShellServer][Conn ${connectionId}] Connection stored. Total connections: ${this.connections.size}`);
 		this.emitEvent(ServerEvent.CONNECT, { connectionId });
 
 		// Handle messages from this connection
 		try {
 			for await (const chunk of this.readLines(conn)) {
-				// Update last activity time
+				// console.log(`[ShellServer][Conn ${connectionId}] Received chunk: ${chunk.substring(0, 100)}${chunk.length > 100 ? '...' : ''}`); // Verbose
 				connection.lastActivity = Date.now();
 
 				try {
-					// Parse and validate the message
 					const message = JSON.parse(chunk);
 					const validationResult = ProtocolMessageRT.validate(message);
 
+					// console.log(`[ShellServer][Conn ${connectionId}] Parsed message type: ${message.type}`); // Verbose
 					if (!validationResult.success) {
+						console.warn(`[ShellServer][Conn ${connectionId}] Invalid message format received:`, validationResult.message);
 						await connection.send({
-							id: crypto.randomUUID(),
-							type: MessageType.ERROR,
-							timestamp: Date.now(),
-							payload: {
-								message: 'Invalid message format',
-								code: 'INVALID_MESSAGE',
-							},
+							id: crypto.randomUUID(), type: MessageType.ERROR, timestamp: Date.now(),
+							payload: { message: 'Invalid message format', code: 'INVALID_MESSAGE' },
 						});
 						continue;
 					}
+                    const validatedMessage = validationResult.value;
 
-					// Handle the message based on its type
-					switch (message.type) {
+					// Handle messages based on type
+					switch (validatedMessage.type) {
 						case MessageType.AUTH_REQUEST: {
-							// Handle authentication request
-							if (authenticated) {
+							console.log(`[ShellServer][Conn ${connectionId}] Processing AUTH_REQUEST`);
+							if (authenticated) { // Already authenticated (e.g., re-auth attempt?)
 								await connection.send({
-									id: crypto.randomUUID(),
-									type: MessageType.AUTH_RESPONSE,
-									timestamp: Date.now(),
-									payload: {
-										success: true,
-										sessionId: connectionId,
-									},
+									id: validatedMessage.id, type: MessageType.AUTH_RESPONSE, timestamp: Date.now(),
+									payload: { success: true, sessionId: connectionId },
 								});
 							} else {
-								const authResult = await this.authenticate(message.payload);
+								const authResult = await this.authenticate(validatedMessage.payload);
 								authenticated = authResult.success;
 								if (authenticated) {
-									username = message.payload.username;
+									username = validatedMessage.payload.username;
 									connection.username = username;
+                                    console.log(`[ShellServer][Conn ${connectionId}] Authentication successful for user: ${username}`);
+
+									// --- Create and Start Shell Instance for this Connection ---
+									shellInstanceForConn = new Shell({ // Create a NEW shell
+									    name: `Remote Shell (${username || connectionId.substring(0, 4)})`,
+									    prompt: this.options.defaultPrompt, // Use configured prompt
+									    width:  undefined,  // Explicitly undefined
+									    height: undefined, // Explicitly undefined
+									    commands:  undefined // Explicitly undefined
+									});
+                                    connection.shellInstance = shellInstanceForConn; // Store it on the connection
+
+									const sendOutput = (data: string) => {
+										connection.send({
+											id: crypto.randomUUID(), type: MessageType.OUTPUT, timestamp: Date.now(),
+											payload: { content: data, final: false, commandId: connectionId }, // Use connectionId as a general ID
+										}).catch(err => console.error(`[ShellServer][Conn ${connectionId}] Error sending output:`, err));
+									};
+
+									const processInput = async (command: string) => {
+                                        // Pass command to the connection's specific shell instance
+                                        if (connection.shellInstance) {
+										    await connection.shellInstance.executeCommand(command);
+                                        }
+									};
+
+                                    // Listen for the STOP event *on this specific shell instance*
+                                    shellInstanceForConn.on(ShellEventType.STOP, () => {
+                                        console.log(`[ShellServer][Conn ${connectionId}] Shell instance stopped. Disconnecting client.`);
+                                        // Use a non-awaited call to avoid blocking message loop if disconnect takes time
+                                        connection.disconnect('Shell exited').catch(err => console.error(`Error during disconnect on shell stop:`, err));
+                                    });
+
+									await shellInstanceForConn.start(processInput, sendOutput);
+                                    console.log(`[ShellServer][Conn ${connectionId}] Shell instance started.`);
+                                    // --- Shell instance started ---
 								}
+                                // Send Auth Response
 								await connection.send({
-									id: crypto.randomUUID(),
-									type: MessageType.AUTH_RESPONSE,
-									timestamp: Date.now(),
-									payload: {
-										success: authResult.success,
-										error: authResult.error,
-										sessionId: authenticated ? connectionId : undefined,
-									},
+									id: validatedMessage.id, type: MessageType.AUTH_RESPONSE, timestamp: Date.now(),
+									payload: { success: authResult.success, error: authResult.error, sessionId: authenticated ? connectionId : undefined, },
 								});
 
 								if (!authenticated) {
-									// Close connection after failed authentication
-									await connection.disconnect('Authentication failed');
+									console.log(`[ShellServer][Conn ${connectionId}] Authentication failed, disconnecting.`);
+									await connection.disconnect('Authentication failed'); // Disconnect immediately on failure
 								}
 							}
 							break;
 						}
-						case MessageType.COMMAND_REQUEST: {
-							// Handle command execution request
-							if (!authenticated) {
-								await connection.send({
-									id: crypto.randomUUID(),
-									type: MessageType.ERROR,
-									timestamp: Date.now(),
-									payload: {
-										message: 'Not authenticated',
-										code: 'AUTH_REQUIRED',
-									},
-								});
+
+						case MessageType.INPUT: {
+							if (!authenticated || !connection.shellInstance) {
+								console.warn(`[ShellServer][Conn ${connectionId}] INPUT received but not authenticated or shell not ready.`);
+                                if (!authenticated) {
+								    await connection.send({
+								    	id: crypto.randomUUID(), type: MessageType.ERROR, timestamp: Date.now(),
+								    	payload: { message: 'Not authenticated', code: 'AUTH_REQUIRED' },
+								    });
+                                }
 								continue;
 							}
 
-							const commandId = crypto.randomUUID();
-							this.emitEvent(ServerEvent.COMMAND, {
-								connectionId,
-								command: message.payload.command,
-							});
-
-							// Capture shell output
-							const originalWrite = this.shell.write.bind(this.shell);
-							const outputBuffer: string[] = [];
-
-							// Override shell.write to capture output
-							this.shell.write = (content: string, options = {}) => {
-								outputBuffer.push(content);
-								originalWrite(content, options);
-							};
-
-							try {
-								// Execute the command by registering a temporary command
-								// that will be executed immediately
-								const commandName = `_remote_${commandId}`;
-								this.shell.registerCommand({
-									name: commandName,
-									description: 'Remote command execution',
-									action: async () => {
-										// The actual command will be executed by the shell
-										// This function should return void
-									}
-								});
-
-								// Now execute our temporary command with the actual command as argument
-								this.shell.registerCommand({
-									name: message.payload.command,
-									description: 'Remote command',
-									action: async () => {
-										// This is just a wrapper to execute the command
-										// This function should return void
-									}
-								});
-
-								// Unregister the temporary command
-								this.shell.unregisterCommand(commandName);
-								this.shell.unregisterCommand(message.payload.command);
-
-								// Send the response
-								await connection.send({
-									id: crypto.randomUUID(),
-									type: MessageType.COMMAND_RESPONSE,
-									timestamp: Date.now(),
-									payload: {
-										success: true,
-										output: outputBuffer.join('\n'),
-										commandId,
-									},
-								});
-							} catch (error) {
-								await connection.send({
-									id: crypto.randomUUID(),
-									type: MessageType.COMMAND_RESPONSE,
-									timestamp: Date.now(),
-									payload: {
-										success: false,
-										error: error instanceof Error ? error.message : String(error),
-										commandId,
-									},
-								});
-							} finally {
-								// Restore original write function
-								this.shell.write = originalWrite;
+							const inputMessage = validatedMessage as InputMessage;
+							if (typeof inputMessage.payload?.data === 'string') {
+								// console.log(`[ShellServer][Conn ${connectionId}] Processing INPUT data: ${inputMessage.payload.data.substring(0, 50)}...`); // Verbose
+								const inputDataBytes = new TextEncoder().encode(inputMessage.payload.data);
+								connection.shellInstance.handleInputData(inputDataBytes); // Pass to the connection's shell
+							} else {
+								console.warn(`[ShellServer][Conn ${connectionId}] Invalid INPUT message payload:`, inputMessage.payload);
 							}
 							break;
 						}
+
 						case MessageType.PING: {
-							// Respond to ping with a pong
 							await connection.send({
-								id: crypto.randomUUID(),
-								type: MessageType.PONG,
-								timestamp: Date.now(),
-								payload: {
-									uptime: Date.now() - this.startTime,
-								},
+								id: crypto.randomUUID(), type: MessageType.PONG, timestamp: Date.now(),
+								payload: { uptime: Date.now() - this.startTime },
 							});
+							break;
+						}
+						case MessageType.PONG: {
+							// console.log(`[ShellServer][Conn ${connectionId}] Received PONG.`); // Verbose
 							break;
 						}
 						default: {
-							// Ignore other message types
+							console.log(`[ShellServer][Conn ${connectionId}] Ignoring unhandled message type: ${validatedMessage.type}`);
 							break;
 						}
 					}
-				} catch (_error) {
-					// Handle error parsing or processing message
+				} catch (parseError) {
+					console.error(`[ShellServer][Conn ${connectionId}] Error processing message JSON:`, parseError, "Raw chunk:", chunk);
 					await connection.send({
-						id: crypto.randomUUID(),
-						type: MessageType.ERROR,
-						timestamp: Date.now(),
-						payload: {
-							message: 'Error processing message',
-							code: 'PROCESSING_ERROR',
-						},
+						id: crypto.randomUUID(), type: MessageType.ERROR, timestamp: Date.now(),
+						payload: { message: 'Error processing message', code: 'PROCESSING_ERROR' },
 					});
 				}
 			}
-		} catch (error) {
-			await this.handleConnectionError(connectionId, error);
+		} catch (readError) {
+            // Handle errors during the read loop (e.g., connection closed abruptly)
+			if (connection.connected) { // Only handle if we didn't disconnect intentionally
+			    await this.handleConnectionError(connectionId, readError);
+            } else {
+                console.log(`[ShellServer][Conn ${connectionId}] Read loop terminated for disconnected client.`);
+            }
 		} finally {
-			// Clean up the connection if the loop exits
+			// Final cleanup when the read loop exits for any reason
+            console.log(`[ShellServer][Conn ${connectionId}] Read loop finished. Cleaning up connection.`);
 			if (this.connections.has(connectionId)) {
-				await connection.disconnect('Connection closed');
+                // Ensure disconnection logic runs if not already disconnected
+				await connection.disconnect('Connection closed or read loop exited'); // This now also stops the shell
 			}
+            // No need to call shellInstanceForConn?.stop() here anymore,
+            // as connection.disconnect() handles it.
 		}
 	}
 
-	/**
-	 * Handle a new WebSocket connection
-	 */
-	private handleWebSocketConnection(socket: WebSocket): void {
-		const connectionId = crypto.randomUUID();
-		let authenticated = this.options.auth?.type === AuthType.NONE;
-		let username: string | undefined;
-
-		// Create a connection object to track this connection
-		const connection: Connection = {
-			id: connectionId,
-			username,
-			connected: true,
-			connectedAt: Date.now(),
-			lastActivity: Date.now(),
-			send: async (message: ProtocolMessage) => {
-				try {
-					socket.send(JSON.stringify(message));
-				} catch (error) {
-					await this.handleConnectionError(connectionId, error);
-				}
-			},
-			disconnect: async (reason: string) => {
-				try {
-					// Send disconnect message before closing
-					await connection.send({
-						id: crypto.randomUUID(),
-						type: MessageType.DISCONNECT,
-						timestamp: Date.now(),
-						payload: { reason },
-					});
-					socket.close();
-				} catch {
-					// Ignore errors during disconnect
-				} finally {
-					this.connections.delete(connectionId);
-					this.emitEvent(ServerEvent.DISCONNECT, { connectionId, reason });
-				}
-			},
-		};
-
-		// Store the connection
-		this.connections.set(connectionId, connection);
-
-		// Emit connection event
-		this.emitEvent(ServerEvent.CONNECT, { connectionId });
-
-		// Set up event handlers for the WebSocket
-		socket.onmessage = async (event) => {
-			// Update last activity time
-			connection.lastActivity = Date.now();
-
-			try {
-				// Parse and validate the message
-				const message = JSON.parse(event.data.toString());
-				const validationResult = ProtocolMessageRT.validate(message);
-
-				if (!validationResult.success) {
-					await connection.send({
-						id: crypto.randomUUID(),
-						type: MessageType.ERROR,
-						timestamp: Date.now(),
-						payload: {
-							message: 'Invalid message format',
-							code: 'INVALID_MESSAGE',
-						},
-					});
-					return;
-				}
-
-				// Handle the message based on its type (same logic as TCP handler)
-				switch (message.type) {
-					case MessageType.AUTH_REQUEST: {
-						// Authentication logic (same as TCP handler)
-						if (authenticated) {
-							await connection.send({
-								id: crypto.randomUUID(),
-								type: MessageType.AUTH_RESPONSE,
-								timestamp: Date.now(),
-								payload: {
-									success: true,
-									sessionId: connectionId,
-								},
-							});
-						} else {
-							const authResult = await this.authenticate(message.payload);
-							authenticated = authResult.success;
-							if (authenticated) {
-								username = message.payload.username;
-								connection.username = username;
-							}
-							await connection.send({
-								id: crypto.randomUUID(),
-								type: MessageType.AUTH_RESPONSE,
-								timestamp: Date.now(),
-								payload: {
-									success: authResult.success,
-									error: authResult.error,
-									sessionId: authenticated ? connectionId : undefined,
-								},
-							});
-
-							if (!authenticated) {
-								// Close connection after failed authentication
-								await connection.disconnect('Authentication failed');
-							}
-						}
-						break;
-					}
-
-					case MessageType.COMMAND_REQUEST: {
-						// Command execution logic (same as TCP handler)
-						if (!authenticated) {
-							await connection.send({
-								id: crypto.randomUUID(),
-								type: MessageType.ERROR,
-								timestamp: Date.now(),
-								payload: {
-									message: 'Not authenticated',
-									code: 'AUTH_REQUIRED',
-								},
-							});
-							return;
-						}
-
-						const commandId = crypto.randomUUID();
-						this.emitEvent(ServerEvent.COMMAND, {
-							connectionId,
-							command: message.payload.command,
-						});
-
-						// Capture shell output
-						const originalWrite = this.shell.write.bind(this.shell);
-						const outputBuffer: string[] = [];
-
-						// Override shell.write to capture output
-						this.shell.write = (content: string, options = {}) => {
-							outputBuffer.push(content);
-							originalWrite(content, options);
-						};
-
-						try {
-							// Execute the command by registering a temporary command
-							// that will be executed immediately
-							const commandName = `_remote_${commandId}`;
-							this.shell.registerCommand({
-								name: commandName,
-								description: 'Remote command execution',
-								action: async () => {
-									// The actual command will be executed by the shell
-									// This function should return void
-								}
-							});
-
-							// Now execute our temporary command with the actual command as argument
-							this.shell.registerCommand({
-								name: message.payload.command,
-								description: 'Remote command',
-								action: async () => {
-									// This is just a wrapper to execute the command
-									// This function should return void
-								}
-							});
-
-							// Unregister the temporary command
-							this.shell.unregisterCommand(commandName);
-							this.shell.unregisterCommand(message.payload.command);
-
-							// Send the response
-							await connection.send({
-								id: crypto.randomUUID(),
-								type: MessageType.COMMAND_RESPONSE,
-								timestamp: Date.now(),
-								payload: {
-									success: true,
-									output: outputBuffer.join('\n'),
-									commandId,
-								},
-							});
-						} catch (error) {
-							await connection.send({
-								id: crypto.randomUUID(),
-								type: MessageType.COMMAND_RESPONSE,
-								timestamp: Date.now(),
-								payload: {
-									success: false,
-									error: error instanceof Error ? error.message : String(error),
-									commandId,
-								},
-							});
-						} finally {
-							// Restore original write function
-							this.shell.write = originalWrite;
-						}
-						break;
-					}
-
-					case MessageType.PING: {
-						// Respond to ping with a pong
-						await connection.send({
-							id: crypto.randomUUID(),
-							type: MessageType.PONG,
-							timestamp: Date.now(),
-							payload: {
-								uptime: Date.now() - this.startTime,
-							},
-						});
-						break;
-					}
-
-					default: {
-						// Ignore other message types
-						break;
-					}
-				}
-			} catch (_error) {
-				// Handle error parsing or processing message
-				await connection.send({
-					id: crypto.randomUUID(),
-					type: MessageType.ERROR,
-					timestamp: Date.now(),
-					payload: {
-						message: 'Error processing message',
-						code: 'PROCESSING_ERROR',
-					},
-				});
-			}
-		};
-
-		socket.onclose = () => {
-			if (this.connections.has(connectionId)) {
-				this.connections.delete(connectionId);
-				this.emitEvent(ServerEvent.DISCONNECT, {
-					connectionId,
-					reason: 'WebSocket closed',
-				});
-			}
-		};
-
-		socket.onerror = (error) => {
-			this.handleConnectionError(connectionId, error);
-		};
-	}
 
 	/**
 	 * Helper method to read messages line by line from a connection
 	 */
 	private async *readLines(conn: Deno.Conn): AsyncGenerator<string> {
-		const buf = new Uint8Array(1024);
+		// ... (Existing implementation with error handling) ...
+        const buf = new Uint8Array(1024);
+		// console.log(`[ShellServer][readLines] Starting generator for a connection.`); // Simplified log
 		let leftover = '';
 
 		while (true) {
-			const n = await conn.read(buf);
+            let n: number | null;
+            try {
+			    n = await conn.read(buf);
+            } catch (readErr) {
+                console.error(`[ShellServer][readLines] Read error:`, readErr);
+                break;
+            }
+
 			if (n === null) {
+				console.log(`[ShellServer][readLines] Read returned null, ending loop.`);
 				break;
 			}
 
@@ -681,8 +433,10 @@ export class ShellServer {
 		}
 
 		if (leftover.trim()) {
+			console.log(`[ShellServer][readLines] Yielding leftover data: ${leftover.substring(0, 100)}${leftover.length > 100 ? '...' : ''}`);
 			yield leftover;
 		}
+		console.log(`[ShellServer][readLines] Exiting generator.`);
 	}
 
 	/**
@@ -694,83 +448,81 @@ export class ShellServer {
 		password?: string;
 		token?: string;
 	}): Promise<{ success: boolean; error?: string }> {
+		// ... (Existing implementation) ...
+        console.log(`[ShellServer] Authenticating connection... AuthType provided: ${payload.authType}`);
 		const serverAuthType = this.options.auth?.type || AuthType.NONE;
 
-		// Check if auth types match
 		if (payload.authType !== serverAuthType) {
-			return {
-				success: false,
-				error: `Authentication type mismatch. Server expects ${serverAuthType}, got ${payload.authType}`,
-			};
+			console.warn(`[ShellServer] Authentication failed: Type mismatch. Server: ${serverAuthType}, Client: ${payload.authType}`);
+			return { success: false, error: `Authentication type mismatch. Server expects ${serverAuthType}, got ${payload.authType}`};
 		}
 
-		// No authentication required
 		if (serverAuthType === AuthType.NONE) {
+			console.log(`[ShellServer] Authentication successful (AuthType: NONE).`);
 			return { success: true };
 		}
 
-		// Basic authentication
 		if (serverAuthType === AuthType.BASIC) {
+			console.log(`[ShellServer] Attempting Basic authentication for user: ${payload.username}`);
 			if (!payload.username || !payload.password) {
-				return {
-					success: false,
-					error: 'Username and password are required for basic authentication',
-				};
+				console.warn('[ShellServer] Basic Auth failed: Username or password missing.');
+				return { success: false, error: 'Username and password are required for basic authentication' };
 			}
-
-			// Check credentials against defined users
 			const users = this.options.auth?.users || [];
 			for (const user of users) {
 				if (user.username === payload.username) {
-					// In a real application, you'd use a proper password hashing algorithm
-					// and compare the hashed passwords
+					console.log(`[ShellServer] Found user: ${user.username}. Verifying password...`);
 					const passwordHash = await this.hashPassword(payload.password);
 					if (user.passwordHash === passwordHash) {
+						console.log(`[ShellServer] Basic Auth successful for user: ${user.username}`);
 						return { success: true };
 					} else {
+						console.warn(`[ShellServer] Basic Auth failed for user ${user.username}: Invalid password.`);
 						return { success: false, error: 'Invalid password' };
 					}
 				}
 			}
+			console.warn(`[ShellServer] Basic Auth failed: User ${payload.username} not found.`);
 			return { success: false, error: 'User not found' };
 		}
 
-		// Token authentication
 		if (serverAuthType === AuthType.TOKEN) {
+            console.log(`[ShellServer] Attempting Token authentication.`);
 			if (!payload.token) {
-				return {
-					success: false,
-					error: 'Token is required for token authentication',
-				};
+				console.warn('[ShellServer] Token Auth failed: Token missing.');
+				return { success: false, error: 'Token is required for token authentication' };
 			}
-
 			if (this.options.auth?.tokenValidator) {
 				try {
 					const isValid = await this.options.auth.tokenValidator(payload.token);
+					console.log(`[ShellServer] Token validation result: ${isValid}`);
 					return isValid ? { success: true } : { success: false, error: 'Invalid token' };
 				} catch (error) {
-					return {
-						success: false,
-						error: `Token validation error: ${error instanceof Error ? error.message : String(error)}`,
-					};
+					console.error('[ShellServer] Token validation error:', error);
+					return { success: false, error: `Token validation error: ${error instanceof Error ? error.message : String(error)}` };
 				}
 			}
+			console.warn('[ShellServer] Token Auth failed: No token validator configured.');
 			return { success: false, error: 'No token validator configured' };
 		}
 
+		console.error(`[ShellServer] Authentication failed: Unsupported auth type ${serverAuthType}.`);
 		return { success: false, error: 'Unsupported authentication type' };
 	}
 
 	/**
 	 * A simple password hashing function
-	 * In a real application, use a proper hashing library with salt
 	 */
 	private async hashPassword(password: string): Promise<string> {
+		// ... (Existing implementation) ...
+        console.log('[ShellServer] Hashing password...');
 		const encoder = new TextEncoder();
 		const data = encoder.encode(password);
 		const hashBuffer = await crypto.subtle.digest('SHA-256', data);
 		const hashArray = Array.from(new Uint8Array(hashBuffer));
-		return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+		const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+		console.log('[ShellServer] Password hashing complete.');
+		return hashHex;
 	}
 
 	/**
@@ -780,13 +532,16 @@ export class ShellServer {
 		connectionId: string,
 		error: unknown,
 	): Promise<void> {
+		// ... (Existing implementation) ...
+        const errorMsg = error instanceof Error ? error.message : String(error);
+		console.error(`[ShellServer][Conn ${connectionId}] Connection error:`, errorMsg);
 		const connection = this.connections.get(connectionId);
 		if (connection) {
-			this.emitEvent(ServerEvent.ERROR, {
-				connectionId,
-				error: error instanceof Error ? error.message : String(error),
-			});
+			console.log(`[ShellServer][Conn ${connectionId}] Emitting ERROR event and disconnecting due to error.`);
+			this.emitEvent(ServerEvent.ERROR, { connectionId, error: errorMsg });
 			await connection.disconnect('Connection error');
+		} else {
+			console.warn(`[ShellServer][Conn ${connectionId}] Connection error for non-existent/already removed connection.`);
 		}
 	}
 
@@ -794,33 +549,27 @@ export class ShellServer {
 	 * Start the ping interval to keep connections alive
 	 */
 	private startPingInterval(): void {
-		// Clear any existing interval
+		// ... (Existing implementation) ...
+        console.log(`[ShellServer] Starting ping interval (${this.options.pingInterval}ms).`);
 		if (this.pingIntervalId) {
 			clearInterval(this.pingIntervalId);
+			console.log('[ShellServer] Cleared existing ping interval.');
 		}
 
-		// Set up new interval
 		this.pingIntervalId = setInterval(() => {
 			const now = Date.now();
-			for (const [_id, connection] of this.connections) {
-				// Check if connection is stale (no activity for 2x ping interval)
+			for (const connection of this.connections.values()) {
 				if (now - connection.lastActivity > this.options.pingInterval! * 2) {
-					connection.disconnect('Connection timeout').catch(() => {
-						// Ignore disconnect errors
-					});
+					console.warn(`[ShellServer][Conn ${connection.id}] Connection timed out. Disconnecting.`);
+					connection.disconnect('Connection timeout').catch(() => {/* ignore */});
 					continue;
 				}
 
-				// Send ping to active connections
 				connection.send({
-					id: crypto.randomUUID(),
-					type: MessageType.PING,
-					timestamp: now,
+					id: crypto.randomUUID(), type: MessageType.PING, timestamp: now,
 				}).catch(() => {
-					// If sending fails, disconnect the connection
-					connection.disconnect('Failed to send ping').catch(() => {
-						// Ignore disconnect errors
-					});
+					console.error(`[ShellServer][Conn ${connection.id}] Failed to send ping. Disconnecting.`);
+					connection.disconnect('Failed to send ping').catch(() => { /* ignore */});
 				});
 			}
 		}, this.options.pingInterval);
@@ -830,63 +579,77 @@ export class ShellServer {
 	 * Stop the shell server
 	 */
 	public async stop(): Promise<void> {
+		// ... (Existing implementation) ...
+        console.log('[ShellServer] Stopping server...');
 		if (!this.isRunning) {
+			console.warn('[ShellServer] Stop called but server is not running.');
 			return;
 		}
-
 		this.isRunning = false;
 
-		// Clear ping interval
 		if (this.pingIntervalId) {
+			console.log('[ShellServer] Clearing ping interval.');
 			clearInterval(this.pingIntervalId);
 			this.pingIntervalId = undefined;
 		}
 
-		// Disconnect all clients
+		console.log('[ShellServer] Disconnecting all clients...');
 		await this.disconnectAll();
 
-		// Close the server
 		if (this.server) {
-			if ('shutdown' in this.server) {
-				// It's an HTTP server
-				await (this.server as Deno.HttpServer).shutdown();
-			} else {
-				// It's a listener
-				this.server.close();
-			}
+			console.log('[ShellServer] Closing server listener...');
+			this.server.close();
 			this.server = undefined;
+			console.log('[ShellServer] Server listener closed.');
 		}
 
-		// Clean up Unix socket file if necessary
 		if (this.options.socketPath) {
+			console.log(`[ShellServer] Attempting to remove Unix socket file: ${this.options.socketPath}`);
 			try {
 				await Deno.remove(this.options.socketPath);
+				console.log(`[ShellServer] Removed Unix socket file: ${this.options.socketPath}`);
 			} catch {
-				// Ignore errors if the file doesn't exist
+				console.warn(`[ShellServer] Failed to remove Unix socket file (ignored): ${this.options.socketPath}`);
 			}
 		}
+		console.log('[ShellServer] Server stopped.');
 	}
 
 	/**
 	 * Disconnect all connected clients
 	 */
 	public async disconnectAll(): Promise<void> {
-		const disconnectPromises: Promise<void>[] = [];
-		for (const connection of this.connections.values()) {
-			disconnectPromises.push(
-				connection.disconnect('Server shutting down').catch(() => {
-					// Ignore disconnect errors
-				}),
-			);
+        // ... (Existing implementation) ...
+        const disconnectPromises: Promise<void>[] = [];
+		const connectionIds = Array.from(this.connections.keys());
+		console.log(`[ShellServer] Disconnecting ${connectionIds.length} client(s)...`);
+
+		for (const connectionId of connectionIds) {
+            const connection = this.connections.get(connectionId);
+			if (connection) {
+                console.log(`[ShellServer][Conn ${connection.id}] Adding disconnect promise.`);
+			    disconnectPromises.push(
+			    	connection.disconnect('Server shutting down').catch((err) => {
+			    		console.error(`[ShellServer][Conn ${connection.id}] Error during disconnectAll disconnect (ignored):`, err);
+			    	}),
+			    );
+            }
 		}
 		await Promise.all(disconnectPromises);
-		this.connections.clear();
+		console.log(`[ShellServer] All disconnect promises settled.`);
+        if (this.connections.size > 0) {
+             console.warn(`[ShellServer] Connections map not empty after disconnectAll (${this.connections.size} remaining). Force clearing.`);
+             this.connections.clear();
+        }
+		console.log(`[ShellServer] DisconnectAll complete.`);
 	}
 
 	/**
 	 * Get a list of all active connections
 	 */
 	public getConnections(): Connection[] {
+		// ... (Existing implementation) ...
+        console.log(`[ShellServer] getConnections called. Returning ${this.connections.size} connection(s).`);
 		return Array.from(this.connections.values());
 	}
 
@@ -894,6 +657,8 @@ export class ShellServer {
 	 * Register an event handler
 	 */
 	public on(event: ServerEvent, handler: (payload: unknown) => void): void {
+		// ... (Existing implementation) ...
+        console.log(`[ShellServer] Registering handler for event: ${event}`);
 		this.eventEmitter.on(event, handler);
 	}
 
@@ -901,6 +666,8 @@ export class ShellServer {
 	 * Unregister an event handler
 	 */
 	public off(event: ServerEvent, handler: (payload: unknown) => void): void {
+		// ... (Existing implementation) ...
+        console.log(`[ShellServer] Unregistering handler for event: ${event}`);
 		this.eventEmitter.off(event, handler);
 	}
 
@@ -908,6 +675,9 @@ export class ShellServer {
 	 * Emit an event
 	 */
 	private emitEvent(event: ServerEvent, payload: unknown): void {
+		// ... (Existing implementation) ...
+        const payloadSummary = JSON.stringify(payload)?.substring(0, 100) || 'undefined';
+		console.log(`[ShellServer] Emitting event: ${event}. Payload summary: ${payloadSummary}${payloadSummary.length === 100 ? '...' : ''}`);
 		this.eventEmitter.emit(event, payload);
 	}
 }
