@@ -49,13 +49,14 @@ export interface BaseMessage {
 export enum MessageType {
 	AUTH_REQUEST = 'auth_request',
 	AUTH_RESPONSE = 'auth_response',
-	COMMAND_REQUEST = 'command_request',
-	COMMAND_RESPONSE = 'command_response',
+	COMMAND_REQUEST = 'command_request', // Note: This might be deprecated/removed later
+	COMMAND_RESPONSE = 'command_response',// Note: This might be deprecated/removed later
 	OUTPUT = 'output',
 	ERROR = 'error',
 	PING = 'ping',
 	PONG = 'pong',
 	DISCONNECT = 'disconnect',
+	INPUT = 'input',
 }
 
 /**
@@ -84,7 +85,19 @@ export interface AuthResponseMessage extends BaseMessage {
 }
 
 /**
- * Command request message
+ * Input message for sending data to the shell
+ */
+export interface InputMessage extends BaseMessage {
+	type: MessageType.INPUT;
+	payload: {
+		data: string; // The input data (e.g., characters typed)
+		sessionId: string;
+	};
+}
+
+
+/**
+ * Command request message (Potentially deprecated for interactive shell)
  */
 export interface CommandRequestMessage extends BaseMessage {
 	type: MessageType.COMMAND_REQUEST;
@@ -96,27 +109,27 @@ export interface CommandRequestMessage extends BaseMessage {
 }
 
 /**
- * Command response message
+ * Command response message (Potentially deprecated for interactive shell)
  */
 export interface CommandResponseMessage extends BaseMessage {
 	type: MessageType.COMMAND_RESPONSE;
 	payload: {
 		success: boolean;
-		output?: string;
+		output?: string; // Bundled output - less suitable for streaming
 		error?: string;
-		commandId: string;
+		commandId: string; // ID of the original CommandRequest
 	};
 }
 
 /**
- * Output message for streaming command output
+ * Output message for streaming shell output
  */
 export interface OutputMessage extends BaseMessage {
 	type: MessageType.OUTPUT;
 	payload: {
-		content: string;
-		commandId: string;
-		final: boolean;
+		content: string; // Chunk of output data
+		commandId: string; // Identifier (can be generic like 'shell_output')
+		final: boolean; // Indicates if this is the final output chunk for a logical block (less relevant for continuous shell)
 	};
 }
 
@@ -127,7 +140,7 @@ export interface ErrorMessage extends BaseMessage {
 	type: MessageType.ERROR;
 	payload: {
 		message: string;
-		code: string;
+		code: string; // e.g., 'AUTH_REQUIRED', 'INVALID_MESSAGE'
 	};
 }
 
@@ -136,6 +149,7 @@ export interface ErrorMessage extends BaseMessage {
  */
 export interface PingMessage extends BaseMessage {
 	type: MessageType.PING;
+	// No payload
 }
 
 /**
@@ -144,7 +158,7 @@ export interface PingMessage extends BaseMessage {
 export interface PongMessage extends BaseMessage {
 	type: MessageType.PONG;
 	payload: {
-		uptime: number;
+		uptime: number; // Server uptime example
 	};
 }
 
@@ -159,7 +173,7 @@ export interface DisconnectMessage extends BaseMessage {
 }
 
 /**
- * Union type of all protocol messages
+ * Union type of all protocol messages (TypeScript interfaces)
  */
 export type ProtocolMessage =
 	| AuthRequestMessage
@@ -170,10 +184,11 @@ export type ProtocolMessage =
 	| ErrorMessage
 	| PingMessage
 	| PongMessage
-	| DisconnectMessage;
+	| DisconnectMessage
+	| InputMessage;
 
 /**
- * Connection interface for tracking active connections
+ * Connection interface for tracking active connections on the server
  */
 export interface Connection {
 	id: string;
@@ -191,7 +206,7 @@ export interface Connection {
 export enum ServerEvent {
 	CONNECT = 'connect',
 	DISCONNECT = 'disconnect',
-	COMMAND = 'command',
+	COMMAND = 'command', // Emitted when a command is processed (might be less relevant now)
 	ERROR = 'error',
 }
 
@@ -199,29 +214,27 @@ export enum ServerEvent {
  * Events emitted by the client
  */
 export enum ClientEvent {
-	CONNECT = 'connect',
+	CONNECT = 'connect', // Includes authentication status and sessionId
 	DISCONNECT = 'disconnect',
-	OUTPUT = 'output',
-	ERROR = 'error',
+	OUTPUT = 'output', // Emits content from OUTPUT messages
+	ERROR = 'error', // Emits server-sent errors or connection errors
 }
 
 
 /**
- * Runtypes for validating protocol messages
+ * Runtypes for validating protocol messages at runtime
  */
 
 // Base message validator
 export const BaseMessageRT = rt.Record({
 	id: rt.String,
-	type: rt.String,
+	type: rt.String, // Keep as string initially, union below enforces specific types
 	timestamp: rt.Number,
 });
 
 // Auth request validator
-export const AuthRequestRT = rt.Record({
+export const AuthRequestRT = BaseMessageRT.And(rt.Record({
 	type: rt.Literal(MessageType.AUTH_REQUEST),
-	id: rt.String,
-	timestamp: rt.Number,
 	payload: rt.Record({
 		authType: rt.Union(
 			rt.Literal(AuthType.BASIC),
@@ -232,81 +245,101 @@ export const AuthRequestRT = rt.Record({
 		password: rt.String.optional(),
 		token: rt.String.optional(),
 	}),
-});
+}));
 
 // Auth response validator
-export const AuthResponseRT = rt.Record({
+export const AuthResponseRT = BaseMessageRT.And(rt.Record({
 	type: rt.Literal(MessageType.AUTH_RESPONSE),
-	id: rt.String,
-	timestamp: rt.Number,
 	payload: rt.Record({
 		success: rt.Boolean,
 		error: rt.String.optional(),
 		sessionId: rt.String.optional(),
 	}),
-});
+}));
 
-// Command request validator
-export const CommandRequestRT = rt.Record({
+// Input message validator
+export const InputMessageRT = BaseMessageRT.And(rt.Record({
+	type: rt.Literal(MessageType.INPUT),
+	payload: rt.Record({
+		data: rt.String,
+		sessionId: rt.String,
+	}),
+}));
+
+
+// Command request validator (Potentially deprecated)
+export const CommandRequestRT = BaseMessageRT.And(rt.Record({
 	type: rt.Literal(MessageType.COMMAND_REQUEST),
-	id: rt.String,
-	timestamp: rt.Number,
 	payload: rt.Record({
 		command: rt.String,
 		args: rt.Array(rt.Unknown).optional(),
 		sessionId: rt.String,
 	}),
-});
+}));
 
-// Command response validator
-export const CommandResponseRT = rt.Record({
+// Command response validator (Potentially deprecated)
+export const CommandResponseRT = BaseMessageRT.And(rt.Record({
 	type: rt.Literal(MessageType.COMMAND_RESPONSE),
-	id: rt.String,
-	timestamp: rt.Number,
 	payload: rt.Record({
 		success: rt.Boolean,
 		output: rt.String.optional(),
 		error: rt.String.optional(),
 		commandId: rt.String,
 	}),
-});
+}));
 
 // Output message validator
-export const OutputMessageRT = rt.Record({
+export const OutputMessageRT = BaseMessageRT.And(rt.Record({
 	type: rt.Literal(MessageType.OUTPUT),
-	id: rt.String,
-	timestamp: rt.Number,
 	payload: rt.Record({
 		content: rt.String,
 		commandId: rt.String,
 		final: rt.Boolean,
 	}),
-});
+}));
 
 // Error message validator
-export const ErrorMessageRT = rt.Record({
+export const ErrorMessageRT = BaseMessageRT.And(rt.Record({
 	type: rt.Literal(MessageType.ERROR),
-	id: rt.String,
-	timestamp: rt.Number,
 	payload: rt.Record({
 		message: rt.String,
 		code: rt.String,
 	}),
-});
+}));
 
-// Union of all message validators
+// Ping message validator (no payload)
+export const PingMessageRT = BaseMessageRT.And(rt.Record({
+	type: rt.Literal(MessageType.PING),
+	// No 'payload' field expected
+}));
+
+// Pong message validator
+export const PongMessageRT = BaseMessageRT.And(rt.Record({
+	type: rt.Literal(MessageType.PONG),
+	payload: rt.Record({
+		uptime: rt.Number,
+	}),
+}));
+
+// Disconnect message validator
+export const DisconnectMessageRT = BaseMessageRT.And(rt.Record({
+	type: rt.Literal(MessageType.DISCONNECT),
+	payload: rt.Record({
+		reason: rt.String,
+	}),
+}));
+
+
+// Union of all specific message Runtype validators
 export const ProtocolMessageRT = rt.Union(
 	AuthRequestRT,
 	AuthResponseRT,
-	CommandRequestRT,
-	CommandResponseRT,
+	CommandRequestRT,    // Keep for now, maybe remove later
+	CommandResponseRT,   // Keep for now, maybe remove later
 	OutputMessageRT,
 	ErrorMessageRT,
-	BaseMessageRT.And(rt.Record({
-		type: rt.Union(
-			rt.Literal(MessageType.PING),
-			rt.Literal(MessageType.PONG),
-			rt.Literal(MessageType.DISCONNECT),
-		),
-	})),
+	InputMessageRT,
+	PingMessageRT,       // Use specific validator
+	PongMessageRT,       // Use specific validator
+	DisconnectMessageRT, // Use specific validator
 );

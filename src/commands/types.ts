@@ -4,6 +4,8 @@
  */
 import * as rt from 'runtypes';
 
+import type { Shell } from '../shell/Shell.ts'; // Import Shell type for context
+import type { OutputOptions } from '../shell/types.ts'; // Import OutputOptions
 /**
  * Command state interface
  */
@@ -11,6 +13,16 @@ export interface CommandState {
 	status: string;
 	metadata: Record<string, unknown>;
 }
+
+/**
+ * Context object passed to command actions.
+ */
+export interface CommandContext {
+	shell: Shell; // Reference to the shell instance
+	write: (content: string, options?: OutputOptions) => void; // Method to write output
+	// Add other context properties as needed (e.g., args, services)
+}
+
 
 /**
  * Command interface
@@ -29,7 +41,7 @@ export interface Command {
 	/**
 	 * The action to execute when the command is invoked
 	 */
-	action: (...args: unknown[]) => void | Promise<void>;
+	action: (context: CommandContext, ...args: string[]) => void | Promise<void>; // Action now receives context and string args
 
 	/**
 	 * Optional subcommands
