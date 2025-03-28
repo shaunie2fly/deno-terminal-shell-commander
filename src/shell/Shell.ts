@@ -413,6 +413,7 @@ export class Shell {
 					this.handleTabCompletion();
 				} else if (char >= ' ') { // Printable characters
 					this.insertAtCursor(char);
+					this.updateInputWithCursor(); // Explicitly update display after insert
 				} else {
 					// Ignore other control characters for now
 					// console.log("Ignored char code:", charCode);
@@ -547,29 +548,35 @@ export class Shell {
 	 * Handle tab completion (basic version)
 	 */
 	private handleTabCompletion(): void {
-		const input = this.buffer.slice(0, this.cursorPosition); // Complete based on text before cursor
-		const currentWordMatch = input.match(/([^\s]+)$/); // Get the last word
-		const currentWord = currentWordMatch ? currentWordMatch[1] : '';
-
-		if (!currentWord) return;
-
-		const commandInput = currentWord.startsWith('/') ? currentWord.substring(1) : currentWord;
-		const suggestions = this.commandRegistry.getSuggestions(commandInput);
+		const input = this.buffer.slice(0, this.cursorPosition); // Use input up to cursor for context
+		const suggestions = this.commandRegistry.getSuggestions(input); // Pass the full relevant input
+		
+		// We still need the last word to determine what part of the suggestion to insert
+		const parts = input.split(/\s+/);
+		const lastPart = parts[parts.length - 1] || '';
 
 		if (suggestions.length === 1) {
 			// Autocomplete
-			const suggestion = suggestions[0];
-			const completion = suggestion.substring(commandInput.length);
-			this.insertAtCursor(completion);
-			// Check if it's a full command and add a space if needed (optional)
-			if (this.commandRegistry.getCommand(suggestion) && this.cursorPosition === this.buffer.length) {
-				this.insertAtCursor(' ');
+			const suggestion = suggestions[0]; // e.g., "echo normal"
+			// Find the part of the suggestion that needs to be inserted
+			// For "echo nor", suggestion is "echo normal", lastPart is "nor"
+			// We need to find what comes after "echo " in the suggestion, relative to lastPart
+			const completion = suggestion.substring(input.length); // Insert the rest of the suggestion
+			this.insertAtCursor(completion); // Update buffer and cursor position internally
+			// Check if it's a full command/subcommand (ends without needing more input)
+			// and add a space if the cursor is now at the end.
+			const cmd = this.commandRegistry.getCommand(suggestion) || this.commandRegistry.getSubcommand(suggestion);
+			if (cmd && !cmd.subcommands && this.cursorPosition === this.buffer.length) {
+				this.insertAtCursor(' '); // Insert space, updates cursor internally again
 			}
+			   // Explicitly set cursor to the end of the buffer *after* all insertions
+			   this.cursorPosition = this.buffer.length;
+			this.updateInputWithCursor(); // Update display using the explicitly set cursor position
 
 		} else if (suggestions.length > 1) {
 			// Show suggestions
 			this._sendOutput('\n'); // Newline before showing suggestions
-			this.displaySuggestions(suggestions, commandInput);
+			this.displaySuggestions(suggestions, input); // Pass full input for context if needed
 			this.showPrompt(); // Redraw prompt and current buffer after suggestions
 		}
 	}

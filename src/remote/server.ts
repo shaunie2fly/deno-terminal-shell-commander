@@ -8,6 +8,8 @@ import { EventEmitter } from 'node:events';
 import { Shell } from '../shell/Shell.ts';
 import { AuthOptions, AuthType, Connection, InputMessage, MessageType, ProtocolMessage, ProtocolMessageRT, ServerEvent } from './protocol.ts';
 import { ShellEventType } from '../shell/types.ts'; // Keep this import
+import { Command, CommandContext } from '../commands/types.ts'; // Added for custom command registration
+
 
 /**
  * Configuration options for the shell server
@@ -28,7 +30,8 @@ export interface ShellServerOptions {
 	pingInterval?: number;
 	/** Maximum number of connections (defaults to 10) */
 	maxConnections?: number;
-    // TODO: Add options for configuring newly created Shell instances (e.g., name, base commands)
+   /** Array of base commands to register on each new shell instance */
+baseCommands?: Command[];
 }
 
 /**
@@ -89,7 +92,8 @@ export class ShellServer {
             defaultPrompt: options.defaultPrompt || 'remote> ', // Added default prompt handling
 			auth: options.auth || { type: AuthType.NONE },
 			pingInterval: options.pingInterval || 30000,
-			maxConnections: options.maxConnections || 10,
+		maxConnections: options.maxConnections || 10,
+		baseCommands: options.baseCommands || [], // Store base commands
 		};
 
 		console.log('[ShellServer] Final configuration:', this.options);
@@ -583,8 +587,8 @@ export class ShellServer {
 			             // Initial dimensions can be undefined; client should send RESIZE later
 			             width: undefined,
 			             height: undefined,
-			             // TODO: Add way to configure initial commands based on server options or user profile
-			             commands: undefined,
+			            // Pass base commands from server options to the Shell constructor
+			            commands: this.options.baseCommands,
 			         });
 			         connection.shellInstance = shellInstanceForConn; // Store it on the connection
 

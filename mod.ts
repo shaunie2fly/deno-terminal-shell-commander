@@ -14,7 +14,7 @@ export { Shell } from "./src/shell/Shell.ts";
 export type { ShellOptions, ShellEvent, EventHandler } from "./src/shell/types.ts";
 
 // Command system exports
-export type { Command, CommandState } from "./src/commands/types.ts";
+export type { Command, CommandContext, CommandState } from "./src/commands/types.ts"; // Added CommandContext
 export { CommandRegistry } from "./src/commands/Registry.ts";
 
 // Remote shell exports 
