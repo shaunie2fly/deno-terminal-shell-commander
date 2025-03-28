@@ -2,7 +2,8 @@
  * Command Registry implementation for the shell
  * @module
  */
-import { Command, CommandContext, CommandResult } from './types.ts'; // Import CommandContext
+import { Command, CommandContext, CommandResult, ParameterDefinition } from './types.ts'; // Import necessary types
+import { parseArguments, ParsedArguments } from './parser.ts'; // Import the parser function and type
 
 /**
  * Registry for shell commands with instance-based registration
@@ -151,6 +152,35 @@ export class CommandRegistry {
 	 * @param context - The execution context containing shell reference and write method.
 	 * @returns Promise resolving to a result object with success status and potential error.
 	 */
+	// TODO: Implement this method in Phase 5
+	private _generateHelp(command: Command): string {
+	 let help = `${command.description}\n\nUsage: ${command.name}`;
+	 if (command.parameters && command.parameters.length > 0) {
+	 	help += ' [options]';
+	 }
+	 if (command.subcommands && command.subcommands.size > 0) {
+	 	help += ' <subcommand>';
+	 }
+	 help += '\n';
+
+	 if (command.parameters && command.parameters.length > 0) {
+	 	help += '\nOptions:\n';
+	 	command.parameters.forEach(p => {
+	 		const alias = p.alias ? `-${p.alias}, ` : '';
+	 		const req = p.required ? ' (required)' : '';
+	 		help += `  ${alias}--${p.name}${req}\t${p.description}\n`;
+	 	});
+	 }
+
+	 if (command.subcommands && command.subcommands.size > 0) {
+	 	help += '\nSubcommands:\n';
+	 	command.subcommands.forEach(sub => {
+	 		help += `  ${sub.name}\t${sub.description}\n`;
+	 	});
+	 }
+	 return help;
+	}
+
 	public async executeCommand(
 		commandInput: string,
 		context: CommandContext, // Add context parameter
@@ -189,8 +219,28 @@ export class CommandRegistry {
 				};
 			}
 
-			// Execute the found command/subcommand action
-			await commandToExecute.action(context, ...currentArgs); // Pass context and remaining args
+			// --- Argument Parsing ---
+			const parsedArgs = parseArguments(currentArgs, commandToExecute.parameters);
+
+			// Handle parsing errors
+			if (parsedArgs.errors.length > 0) {
+				const errorMsg = `Argument errors:\n${parsedArgs.errors.map((e: string) => `  - ${e}`).join('\n')}`; // Add type to 'e'
+				context.write(errorMsg, { format: 'error', newline: true });
+				// Optionally show help on error:
+				// context.write(this._generateHelp(commandToExecute), { newline: true });
+				return { success: false, error: new Error(errorMsg) };
+			}
+
+			// Handle help request
+			if (parsedArgs.helpRequested) {
+				context.write(this._generateHelp(commandToExecute), { newline: true });
+				return { success: true }; // Successfully showed help
+			}
+			// --- End Argument Parsing ---
+
+			// Execute the found command/subcommand action with parsed args
+			// NOTE: This will cause a type error until Phase 4 is complete (updating action signature)
+			await commandToExecute.action(context, parsedArgs);
 			return { success: true };
 
 		} catch (error) {

@@ -608,11 +608,19 @@ export class ShellServer {
 			             if (connection.shellInstance) {
 			                 try {
 			                     // console.log(`[ShellServer][Conn ${connectionId}] Executing command in shell: ${command.substring(0,50)}...`); // Verbose
-			                     await connection.shellInstance.executeCommand(command);
-			                 } catch (cmdError) {
-			                      console.error(`[ShellServer][Conn ${connectionId}] Error executing command '${command.substring(0,50)}...' in shell:`, cmdError);
-			                      // Send error feedback to the client via shell output mechanism
-			                      sendOutput(`\nError executing command: ${cmdError instanceof Error ? cmdError.message : String(cmdError)}\n`);
+			                     const result = await connection.shellInstance.executeCommand(command); // Capture result
+
+			      // Check if the registry/parser handled the command unsuccessfully
+			      // Note: Help requests return success: true, so they won't trigger this.
+			      if (!result.success && result.error) {
+			       // Error message should have already been sent by the registry/parser via context.write
+			       // Log it server-side for debugging.
+			       console.error(`[ShellServer][Conn ${connectionId}] Command execution failed (handled by registry/parser):`, result.error.message);
+			      }
+			                 } catch (cmdActionError) { // Catch only errors thrown *during* command ACTION execution
+			                      console.error(`[ShellServer][Conn ${connectionId}] Error during command action execution '${command.substring(0,50)}...':`, cmdActionError);
+			                      // Send specific error feedback for action errors
+			                      sendOutput(`\nError during command execution: ${cmdActionError instanceof Error ? cmdActionError.message : String(cmdActionError)}\n`);
 			                 }
 			             } else {
 			                  console.error(`[ShellServer][Conn ${connectionId}] processInput called but shell instance is missing!`);

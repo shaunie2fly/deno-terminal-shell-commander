@@ -1,4 +1,6 @@
-import { ShellServer, AuthType, Command, CommandContext } from '../../mod.ts'; // Import Command/Context from main module
+import { ShellServer, AuthType } from '../../mod.ts';
+import type { Command, CommandContext, ParameterDefinition } from '../commands/types.ts'; // Import needed types
+import type { ParsedArguments } from '../commands/parser.ts'; // Import ParsedArguments
 
 // --- Define Base Commands ---
 const timeCommand: Command = {
@@ -14,21 +16,37 @@ const timeCommand: Command = {
 const echoNormalCommand: Command = {            
     name: 'normal',
     description: 'Echoes the provided text.',
-
-    // Action receives context and any arguments passed *after* "echo normal"
-    action: (context: CommandContext, ...args: string[]) => {
-        const output = args.join(' ');
-        context.write(`${output}\r\n`);
-    },
+	parameters: [ // Define the accepted parameter
+		{ name: 'string', alias: 's', description: 'The text to echo', type: 'string', required: true }
+	],
+	action: (context: CommandContext, parsedArgs: ParsedArguments) => { // Use ParsedArguments
+		const textToEcho = parsedArgs.options['string']; // Get value from parsed options
+		if (typeof textToEcho !== 'string' || textToEcho.length === 0) {
+			// Error handled by parser's required check, but good to be defensive
+			context.write(`Error: Missing or invalid --string option.\r\n`, { format: 'error' });
+			return;
+		}
+		context.write(`${textToEcho}\r\n`);
+	},
 };
+// Removed extraneous };
 
 const echoReverseCommand: Command = {
     name: 'reverse',
     description: 'Echoes the provided text in reverse.',
-    action: (context: CommandContext, ...args: string[]) => {
-        const output = args.join(' ').split('').reverse().join('');
-        context.write(`${output}\r\n`);
-    },
+ parameters: [ // Define the accepted parameter
+  { name: 'string', alias: 's', description: 'The text to reverse', type: 'string', required: true }
+ ],
+ action: (context: CommandContext, parsedArgs: ParsedArguments) => { // Use ParsedArguments
+  const textToReverse = parsedArgs.options['string']; // Get value from parsed options
+  if (typeof textToReverse !== 'string' || textToReverse.length === 0) {
+   // Error handled by parser's required check, but good to be defensive
+   context.write(`Error: Missing or invalid --string option.\r\n`, { format: 'error' });
+   return;
+  }
+  const output = textToReverse.split('').reverse().join('');
+  context.write(`${output}\r\n`);
+ },
 };
 
 const echoCommand: Command = {
@@ -36,8 +54,12 @@ const echoCommand: Command = {
     description: 'Echoes text normally or reversed.',
     
     // Optional: Default action if just 'echo' is typed
-    action: (context: CommandContext) => {
-        context.write('Usage: echo [normal|reverse] <text...>\r\n');
+    // Default action updated to reflect new parameter usage
+    action: (context: CommandContext, parsedArgs: ParsedArguments) => {
+  // Check if help wasn't already handled (e.g., if called directly without args/help flag)
+  if (!parsedArgs.helpRequested) {
+         context.write('Usage: echo <normal|reverse> --string=<text>\r\n');
+  }
     },
     subcommands: new Map<string, Command>([
         [echoNormalCommand.name, echoNormalCommand],
