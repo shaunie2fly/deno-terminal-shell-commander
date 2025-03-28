@@ -11,10 +11,10 @@ const timeCommand: Command = {
     },
 };
 // --- Echo Command with Subcommands ---
-const echoNormalCommand: Command = {
+const echoNormalCommand: Command = {            
     name: 'normal',
     description: 'Echoes the provided text.',
-    
+
     // Action receives context and any arguments passed *after* "echo normal"
     action: (context: CommandContext, ...args: string[]) => {
         const output = args.join(' ');
@@ -42,8 +42,18 @@ const echoCommand: Command = {
     subcommands: new Map<string, Command>([
         [echoNormalCommand.name, echoNormalCommand],
         [echoReverseCommand.name, echoReverseCommand],
-    ]),
-};
+       ]),
+      
+       // Add argument suggestions for the first argument (which are the subcommands)
+       getArgumentSuggestions: (_context, currentArgs, partialArg) => {
+        const possibleArgs = ['normal', 'reverse'];
+        if (currentArgs.length === 0) {
+        	// Only suggest for the first argument position
+        	return possibleArgs.filter(arg => arg.startsWith(partialArg));
+        }
+        return []; // No suggestions for subsequent arguments
+       },
+      };
 // --- End Echo Command ---
 
 

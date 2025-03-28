@@ -490,7 +490,7 @@ export class Shell {
 					payload: { command: commandToExecute, success: true },
 				});
 			} else { // Command not found by registry
-				const suggestions = this.commandRegistry.getSuggestions(commandToExecute);
+				const suggestions = await this.commandRegistry.getSuggestions(commandToExecute, context); // Await and pass context
 				const errorMessage = suggestions.length > 0
 					? `Unknown command "${commandInput}". Did you mean "${suggestions[0]}"?`
 					: `Unknown command "${commandInput}"`;
@@ -547,9 +547,16 @@ export class Shell {
 	/**
 	 * Handle tab completion (basic version)
 	 */
-	private handleTabCompletion(): void {
+	private async handleTabCompletion(): Promise<void> { // Make async
 		const input = this.buffer.slice(0, this.cursorPosition); // Use input up to cursor for context
-		const suggestions = this.commandRegistry.getSuggestions(input); // Pass the full relevant input
+
+		// Create context needed for getSuggestions
+		const context: CommandContext = {
+			shell: this,
+			write: (content: string, options?: OutputOptions) => this.write(content, options),
+		};
+
+		const suggestions = await this.commandRegistry.getSuggestions(input, context); // Await and pass context
 		
 		// We still need the last word to determine what part of the suggestion to insert
 		const parts = input.split(/\s+/);
@@ -576,7 +583,8 @@ export class Shell {
 		} else if (suggestions.length > 1) {
 			// Show suggestions
 			this._sendOutput('\n'); // Newline before showing suggestions
-			this.displaySuggestions(suggestions, input); // Pass full input for context if needed
+			// displaySuggestions expects string[], ensure we have awaited result
+			this.displaySuggestions(suggestions, input);
 			this.showPrompt(); // Redraw prompt and current buffer after suggestions
 		}
 	}

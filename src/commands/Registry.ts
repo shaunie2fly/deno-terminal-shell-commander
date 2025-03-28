@@ -203,57 +203,124 @@ export class CommandRegistry {
 	}
 
 	/**
-	 * Get command suggestions based on partial input
-	 * @param partial - The partial command input
-	 * @returns Array of matching command names or subcommand paths
+	 * Get command/argument suggestions based on partial input.
+	 * @param partial - The partial command input string.
+	 * @param context - The command execution context.
+	 * @returns Promise resolving to an array of suggestion strings.
 	 */
-	public getSuggestions(partial: string): string[] {
-		const parts = partial.trim().split(/\s+/);
-		const suggestions: string[] = [];
+	public async getSuggestions(partial: string, context: CommandContext): Promise<string[]> {
+		const trimmedPartial = partial.trimStart(); // Keep trailing space if present
+		const parts = trimmedPartial.split(/\s+/);
+		// If the input is just spaces, parts will be [""] or ["", ""], handle this.
+		const validParts = parts.filter(p => p.length > 0);
+		const endsWithSpace = partial.length > 0 && /\s$/.test(partial);
 
-		if (parts.length === 0) return [];
-
-		// If only one part, suggest top-level commands
-		if (parts.length === 1) {
-			const partialCmd = parts[0];
-			for (const name of this.commands.keys()) {
-				if (name.startsWith(partialCmd)) {
-					suggestions.push(name);
-				}
-			}
-			return suggestions;
+		if (validParts.length === 0 && !endsWithSpace) {
+			// Empty input: suggest all top-level commands
+			return Array.from(this.commands.keys());
 		}
 
-		// If multiple parts, try suggesting subcommands
-		const commandName = parts[0];
-		let currentCommand = this.commands.get(commandName);
-		if (!currentCommand) return []; // Base command doesn't exist
+		// --- Find deepest matching command/subcommand ---
+		let commandCandidate: Command | undefined = undefined;
+		let commandPathParts: string[] = [];
+		let argStartIndex = 0; // Index in validParts where arguments start
 
-		let currentPath = commandName;
-		for (let i = 1; i < parts.length; i++) {
-			const part = parts[i];
-			const isLastPart = (i === parts.length - 1);
-
-			if (!currentCommand?.subcommands) return []; // No more subcommands down this path
-
-			if (isLastPart) {
-				// Suggest subcommands starting with the last part
-				for (const subName of currentCommand.subcommands.keys()) {
-					if (subName.startsWith(part)) {
-						suggestions.push(`${currentPath} ${subName}`);
+		if (validParts.length > 0) {
+			const rootCommand = this.commands.get(validParts[0]);
+			if (rootCommand) {
+				commandCandidate = rootCommand;
+				commandPathParts = [validParts[0]];
+				argStartIndex = 1;
+				for (let i = 1; i < validParts.length; i++) {
+					const subName = validParts[i];
+					if (commandCandidate.subcommands && commandCandidate.subcommands.has(subName)) {
+						commandCandidate = commandCandidate.subcommands.get(subName);
+						commandPathParts.push(subName);
+						argStartIndex = i + 1;
+					} else {
+						break; // Remaining parts are arguments
 					}
+					if (!commandCandidate) break; // Should not happen
 				}
-				return suggestions; // Return suggestions at this level
-			} else {
-				// Navigate deeper
-				const nextCommand = currentCommand.subcommands.get(part);
-				if (!nextCommand) return []; // Invalid path part
-				currentCommand = nextCommand;
-				currentPath += ` ${part}`;
 			}
 		}
+		// --- End find command ---
 
-		return suggestions; // Should technically be unreachable if logic is correct
+		const commandCandidatePath = commandPathParts.join(' ');
+		const currentArgs = validParts.slice(argStartIndex);
+
+
+		// --- Determine suggestions based on context ---
+		if (endsWithSpace) {
+			// CASE 1: Input ends with space - Suggest next argument or subcommand
+
+			// 1a: Try getting argument suggestions for the *next* argument
+			if (commandCandidate && commandCandidate.getArgumentSuggestions) {
+				try {
+					const argSuggestions = await commandCandidate.getArgumentSuggestions(context, currentArgs, ""); // Empty partial for next arg
+					if (argSuggestions && argSuggestions.length > 0) {
+						// Return suggestions as they are. Shell needs to handle insertion.
+						return argSuggestions;
+					}
+				} catch (error) {
+					console.error(`[CommandRegistry] Error getting argument suggestions for ${commandCandidatePath}:`, error);
+				}
+			}
+
+			// 1b: If no argument suggestions, suggest subcommands of the current command
+			if (commandCandidate && commandCandidate.subcommands && commandCandidate.subcommands.size > 0) {
+				return Array.from(commandCandidate.subcommands.keys()).map(subName => `${commandCandidatePath} ${subName}`);
+			}
+
+			// 1c: Nothing to suggest
+			return [];
+
+		} else {
+			// CASE 2: Input does NOT end with space - Complete current word
+
+			const partialLastWord = validParts[validParts.length - 1] || "";
+			const isPotentiallySubcommand = commandCandidate && argStartIndex === validParts.length - 1; // Is the word being typed potentially a subcommand?
+			const isPotentiallyArgument = commandCandidate && argStartIndex <= validParts.length - 1; // Is the word being typed potentially an argument?
+
+			// 2a: Try completing as a subcommand first
+			if (isPotentiallySubcommand && commandCandidate?.subcommands) {
+				const subSuggestions = Array.from(commandCandidate.subcommands.keys())
+					.filter(subName => subName.startsWith(partialLastWord))
+					.map(subName => `${commandCandidatePath} ${subName}`);
+				if (subSuggestions.length > 0) {
+					return subSuggestions;
+				}
+			}
+
+			// 2b: If not a matching subcommand, try completing as an argument
+			if (isPotentiallyArgument && commandCandidate?.getArgumentSuggestions) {
+				try {
+					const argsBeforePartial = currentArgs.slice(0, -1);
+					const argSuggestions = await commandCandidate.getArgumentSuggestions(context, argsBeforePartial, partialLastWord);
+					if (argSuggestions && argSuggestions.length > 0) {
+						// Filter suggestions by the partial word and return only the values
+						const filtered = argSuggestions.filter(s => s.startsWith(partialLastWord));
+						if (filtered.length > 0) {
+							return filtered;
+						}
+					}
+				} catch (error) {
+					console.error(`[CommandRegistry] Error getting argument suggestions for ${commandCandidatePath}:`, error);
+				}
+			}
+
+			// 2c: If not subcommand or argument, and it's the first word, try completing as a top-level command
+			if (validParts.length === 1 && argStartIndex === 0) {
+				const topLevelSuggestions = Array.from(this.commands.keys())
+					.filter(name => name.startsWith(partialLastWord));
+				if (topLevelSuggestions.length > 0) {
+					return topLevelSuggestions;
+				}
+			}
+
+			// 2d: Nothing to suggest
+			return [];
+		}
 	}
 
 
