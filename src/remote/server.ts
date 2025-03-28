@@ -6,9 +6,9 @@
  */
 import { EventEmitter } from 'node:events';
 import { Shell } from '../shell/Shell.ts';
-import { AuthOptions, AuthType, Connection, InputMessage, MessageType, ProtocolMessage, ProtocolMessageRT, ServerEvent } from './protocol.ts';
-import { ShellEventType } from '../shell/types.ts'; // Keep this import
-import { Command, CommandContext } from '../commands/types.ts'; // Added for custom command registration
+import { type AuthOptions, AuthType, type Connection, MessageType, type ProtocolMessage, ProtocolMessageRT, ServerEvent } from './protocol.ts';
+import { ShellEventType } from '../shell/types.ts';
+import type { Command } from '../commands/types.ts'; 
 
 
 /**

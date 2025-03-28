@@ -2,11 +2,12 @@
  * Shell class - Core shell implementation with instance-based command system
  */
 import * as colors from '../colors.ts';
-import { Command, CommandContext, ParameterDefinition, CommandResult } from '../commands/types.ts'; // Added CommandResult
-import { CommandRegistry } from '../commands/Registry.ts'; // Import CommandRegistry
-import type { ParsedArguments } from '../commands/parser.ts'; // Import ParsedArguments as type
+import type { Command, CommandContext, CommandResult } from '../commands/types.ts'; 
+import { CommandRegistry } from '../commands/Registry.ts'; 
+import type { ParsedArguments } from '../commands/parser.ts'; 
 import { LayoutManager } from '../ui/layout/layout_manager.ts';
-import { EventHandler, OutputFormat, OutputOptions, ShellEvent, ShellEventType, ShellOptions } from './types.ts';
+import type { EventHandler, OutputFormat, OutputOptions, ShellEvent, ShellOptions } from './types.ts';
+import {  ShellEventType } from './types.ts';
 
 /**
  * Core Shell class for terminal interfaces

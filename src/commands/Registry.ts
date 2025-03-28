@@ -2,8 +2,8 @@
  * Command Registry implementation for the shell
  * @module
  */
-import { Command, CommandContext, CommandResult, ParameterDefinition } from './types.ts'; // Import necessary types
-import { parseArguments, ParsedArguments } from './parser.ts'; // Import the parser function and type
+import type { Command, CommandContext, CommandResult } from './types.ts'; // Import necessary types
+import { parseArguments } from './parser.ts'; // Import the parser function and type
 
 /**
  * Registry for shell commands with instance-based registration
