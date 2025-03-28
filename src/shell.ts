@@ -25,19 +25,39 @@ interface ShellConfig {
 }
 
 /**
- * Shell class managing the terminal user interface
+ * @class Shell
+ * @description Manages the terminal user interface, input handling, command execution,
+ * history, tab completion, and overall shell lifecycle. It interacts with the
+ * LayoutManager for rendering and the CommandRegistry for command processing.
  */
 export class Shell {
+	/** @property {string} buffer - The current input buffer content. */
 	private buffer = '';
+	/** @property {number} cursorPosition - The current position of the cursor within the input buffer. */
 	private cursorPosition = 0; // Track cursor position within buffer
+	/** @property {string[]} history - Stores the command history. */
 	private history: string[] = [];
+	/** @property {number} historyIndex - The current index when navigating through command history. -1 means not navigating. */
 	private historyIndex = -1;
+	/** @property {string} tempBuffer - Temporarily stores the current buffer when navigating history. */
 	private tempBuffer = ''; // Store buffer when navigating history
+	/** @property {string} name - The name of the shell instance, displayed in the welcome message. */
 	private name: string;
+	/** @property {string} prompt - The prompt string displayed before user input. */
 	private prompt: string;
+	/** @property {boolean} isRunning - Flag indicating if the shell is currently active and reading input. */
 	private isRunning = false;
+	/** @property {LayoutManager} layout - Manages the rendering of the shell UI components (output, input). */
 	private layout: LayoutManager;
 
+	/**
+	 * @constructor
+	 * @param {ShellConfig} [config={}] - Optional configuration for the shell.
+	 * @param {string} [config.name='Terminal Shell'] - The name of the shell.
+	 * @param {string} [config.prompt='> '] - The prompt string.
+	 * @param {number} [config.width] - (Not currently used) Intended width for the shell layout.
+	 * @param {number} [config.height] - (Not currently used) Intended height for the shell layout.
+	 */
 	constructor(config: ShellConfig = {}) {
 		this.name = config.name ?? 'Terminal Shell';
 		this.prompt = config.prompt ?? '> ';
@@ -45,7 +65,11 @@ export class Shell {
 	}
 
 	/**
-	 * Write content to the output buffer
+	 * @public
+	 * @method writeOutput
+	 * @description Writes content directly to the shell's output area and triggers a render.
+	 * Use this for displaying command results or messages to the user.
+	 * @param {string} content - The content to write to the output.
 	 */
 	public writeOutput(content: string): void {
 		this.layout.writeOutput(content);
@@ -54,7 +78,11 @@ export class Shell {
 	}
 
 	/**
-	 * Internal write method for shell operations
+	 * @private
+	 * @method write
+	 * @description Internal method to write content to the output buffer without an immediate render.
+	 * Used internally by methods that perform multiple writes before a final render.
+	 * @param {string} content - The content to write.
 	 */
 	private write(content: string): void {
 		this.layout.writeOutput(content);
@@ -62,7 +90,9 @@ export class Shell {
 	}
 
 	/**
-	 * Clear the terminal screen
+	 * @public
+	 * @method clearScreen
+	 * @description Clears the entire terminal screen and the layout buffer, then re-renders.
 	 */
 	public clearScreen(): void {
 		this.layout.clear();
@@ -70,7 +100,9 @@ export class Shell {
 	}
 
 	/**
-	 * Display the prompt
+	 * @private
+	 * @method showPrompt
+	 * @description Displays the shell prompt along with the current input buffer and cursor position.
 	 */
 	private showPrompt(): void {
 		this.layout.updateInputWithCursor(this.prompt + this.buffer, this.prompt.length + this.cursorPosition);
@@ -78,7 +110,11 @@ export class Shell {
 	}
 
 	/**
-	 * Update the current buffer and display
+	 * @private
+	 * @method updateBuffer
+	 * @description Updates the entire input buffer with new content and re-renders the input line.
+	 * Use this when the entire buffer content changes (e.g., history navigation, tab completion).
+	 * @param {string} newContent - The new content for the input buffer.
 	 */
 	private updateBuffer(newContent: string): void {
 		this.buffer = newContent;
@@ -87,7 +123,11 @@ export class Shell {
 	}
 
 	/**
-	 * Update the buffer for individual character input without full redraw
+	 * @private
+	 * @method updateBufferChar
+	 * @description Updates the input buffer content without triggering a full render, only updating the layout's internal state.
+	 * Used for single character insertions/deletions before the final cursor update and render.
+	 * @param {string} newContent - The new content for the input buffer.
 	 */
 	private updateBufferChar(newContent: string): void {
 		this.buffer = newContent;
@@ -95,7 +135,10 @@ export class Shell {
 	}
 
 	/**
-	 * Handle arrow key navigation
+	 * @private
+	 * @method handleArrowKey
+	 * @description Handles UP and DOWN arrow key presses for navigating command history.
+	 * @param {string} key - The specific arrow key pressed ('A' for UP, 'B' for DOWN).
 	 */
 	private handleArrowKey(key: string): void {
 		if (key === UP_ARROW) {
@@ -109,7 +152,7 @@ export class Shell {
 				// Update buffer with full render
 				this.buffer = historyCommand;
 				this.cursorPosition = historyCommand.length;
-				this.updateInputWithCursor();
+				this.updateInputWithCursor(); // Renders implicitly
 			}
 		} else if (key === DOWN_ARROW) {
 			if (this.historyIndex > -1) {
@@ -122,19 +165,22 @@ export class Shell {
 					this.buffer = historyCommand;
 					this.cursorPosition = historyCommand.length;
 				}
-				this.updateInputWithCursor();
+				this.updateInputWithCursor(); // Renders implicitly
 			}
 		}
 	}
 
 	/**
-	 * Handle tab completion
+	 * @private
+	 * @method handleTabCompletion
+	 * @description Handles the Tab key press for command and subcommand completion.
+	 * Provides suggestions or autocompletes based on the current input buffer.
 	 */
 	private handleTabCompletion(): void {
-		const input = this.buffer.trim();
+		const input = this.buffer.slice(0, this.cursorPosition); // Complete based on text before cursor
 
-		// Skip tab completion if buffer is empty
-		if (!input) return;
+		// Skip tab completion if buffer before cursor is empty or ends with space
+		if (!input || input.endsWith(' ')) return;
 
 		// Handle commands with or without leading slash
 		const commandInput = input.startsWith('/') ? input.substring(1) : input;
@@ -174,7 +220,7 @@ export class Shell {
 			}
 		}
 
-		// Get command suggestions from registry
+		// Get command suggestions from registry based on input before cursor
 		const suggestions = commandRegistry.getSuggestions(commandInput);
 
 		if (suggestions.length === 0) {
@@ -182,10 +228,15 @@ export class Shell {
 			return;
 		} else if (suggestions.length === 1) {
 			// Single match - autocomplete
-			const completedCommand = input.startsWith('/') ? `/${suggestions[0]}` : suggestions[0];
-			this.updateBuffer(completedCommand);
+			// Single match - autocomplete
+			const completedCommand = suggestions[0];
+			const fullCompletedCommand = input.startsWith('/') ? `/${completedCommand}` : completedCommand;
+			const remainingBuffer = this.buffer.slice(this.cursorPosition);
+			this.buffer = fullCompletedCommand + remainingBuffer;
+			this.cursorPosition = fullCompletedCommand.length; // Move cursor to end of completed part
+			this.updateInputWithCursor(); // Renders implicitly
 		} else if (suggestions.length > 1) {
-			// Multiple matches - show suggestions
+			// Multiple matches - show suggestions and attempt common prefix completion
 			this.write('\n');
 
 			// Find common prefix for partial completion
@@ -198,34 +249,47 @@ export class Shell {
 			this.layout.render(Deno.stdout);
 
 			// Handle common prefix completion
-			const _currentCommandPart = commandInput.split(/\s+/).pop() || '';
-			const isSubcommandCompletion = commandInput.includes(' ');
+			// Attempt common prefix completion only if the prefix is longer than the current input part
+			const currentPart = commandInput.split(/\s+/).pop() || '';
+			if (commonPrefix.length > currentPart.length) {
+				const isSubcommandCompletion = commandInput.includes(' ');
+				let prefixToInsert: string;
 
-			if (isSubcommandCompletion) {
-				// Handle subcommand completion
-				const parts = commandInput.split(/\s+/);
-				const baseCommand = parts.slice(0, parts.length - 1).join(' ');
-				const subcommandPartial = parts[parts.length - 1];
+				if (isSubcommandCompletion) {
+					const parts = commandInput.split(/\s+/);
+					const baseCommand = parts.slice(0, -1).join(' ');
+					// Ensure the common prefix starts with the base command structure if applicable
+					if (commonPrefix.startsWith(baseCommand + ' ')) {
+						prefixToInsert = commonPrefix;
+					} else {
+						// This case might be complex, maybe just complete the subcommand part
+						const subPrefix = this.findCommonPrefix(suggestions.map(s => s.substring(baseCommand.length + 1)));
+						prefixToInsert = baseCommand + ' ' + subPrefix;
+					}
 
-				if (commonPrefix.length > subcommandPartial.length) {
-					const subcommandPrefix = commonPrefix.substring(commonPrefix.indexOf(' ') + 1);
-					const newCommand = baseCommand ? `${baseCommand} ${subcommandPrefix}` : subcommandPrefix;
-					const prefixWithSlash = input.startsWith('/') ? `/${newCommand}` : newCommand;
-					this.updateBuffer(prefixWithSlash);
-					return;
+				} else {
+					prefixToInsert = commonPrefix;
 				}
-			} else if (commonPrefix.length > commandInput.length) {
-				const prefixToUse = input.startsWith('/') ? `/${commonPrefix}` : commonPrefix;
-				this.updateBuffer(prefixToUse);
-				return;
+
+				const fullPrefixToInsert = input.startsWith('/') ? `/${prefixToInsert}` : prefixToInsert;
+				const remainingBuffer = this.buffer.slice(this.cursorPosition);
+				this.buffer = fullPrefixToInsert + remainingBuffer;
+				this.cursorPosition = fullPrefixToInsert.length;
+				this.updateInputWithCursor(); // Renders implicitly
+				return; // Don't show prompt again if we completed
 			}
 
+			// If no common prefix completion happened, just show the prompt again
 			this.showPrompt();
 		}
 	}
 
 	/**
-	 * Find the longest common prefix among an array of strings
+	 * @private
+	 * @method findCommonPrefix
+	 * @description Finds the longest common starting sequence among an array of strings.
+	 * @param {string[]} strings - An array of strings.
+	 * @returns {string} The longest common prefix. Returns an empty string if the array is empty or no common prefix exists.
 	 */
 	private findCommonPrefix(strings: string[]): string {
 		if (strings.length === 0) return '';
@@ -246,7 +310,11 @@ export class Shell {
 	}
 
 	/**
-	 * Display command suggestions with descriptions
+	 * @private
+	 * @method displaySuggestions
+	 * @description Formats and writes command or subcommand suggestions to the output area.
+	 * @param {string[]} suggestions - The list of suggestion strings.
+	 * @param {string} _commandInput - The original input used to generate suggestions (currently unused).
 	 */
 	private displaySuggestions(suggestions: string[], _commandInput: string): void {
 		// Check if these are subcommand suggestions
@@ -270,11 +338,19 @@ export class Shell {
 			// Basic command suggestions
 			outputLines.push(colors.formatHelpTitle('Available commands:'));
 			const maxLength = Math.max(...suggestions.map((s) => s.length));
-			const columns = Math.floor(80 / (maxLength + 4)); // Assume 80 column terminal width
+			let termWidth = 80; // Default width
+			try {
+				termWidth = Deno.consoleSize().columns;
+			} catch (_e) { /* Ignore error, use default */ }
+			const columns = Math.max(1, Math.floor(termWidth / (maxLength + 4))); // Ensure at least 1 column
 
-			if (suggestions.length > 6) {
+			// Determine if descriptions should be shown (heuristic: few items or enough space)
+			const showDescriptions = suggestions.length <= 6 || columns === 1;
+
+			if (!showDescriptions) {
 				// Show in columns without descriptions
-				let row = [];
+				// Show in columns without descriptions
+				let row: string[] = [];
 				for (let i = 0; i < suggestions.length; i++) {
 					row.push(colors.formatHelpCommand(suggestions[i].padEnd(maxLength + 2)));
 					if (row.length === columns || i === suggestions.length - 1) {
@@ -283,12 +359,31 @@ export class Shell {
 					}
 				}
 			} else {
-				// Show with descriptions
+				// Show with descriptions (one per line)
 				for (const cmd of suggestions) {
 					const description = commandRegistry.getDescription(cmd);
 					const formattedCommand = colors.formatHelpCommand(cmd.padEnd(maxLength + 2));
 					const formattedDescription = description ? colors.formatHelpDescription(description) : '';
-					outputLines.push(`  ${formattedCommand}${formattedDescription}`);
+					// Simple wrapping for description if too long (basic)
+					const availableDescWidth = termWidth - (maxLength + 4); // Width for description
+					let wrappedDescription = formattedDescription;
+					if (formattedDescription.length > availableDescWidth && availableDescWidth > 10) {
+						// Basic wrap - split into lines
+						const lines = [];
+						let currentLine = '';
+						formattedDescription.split(' ').forEach(word => {
+							if ((currentLine + word).length > availableDescWidth) {
+								lines.push(currentLine.trim());
+								currentLine = word + ' ';
+							} else {
+								currentLine += word + ' ';
+							}
+						});
+						lines.push(currentLine.trim());
+						wrappedDescription = lines.join(`\n${' '.repeat(maxLength + 4)}`); // Indent subsequent lines
+					}
+
+					outputLines.push(`  ${formattedCommand}${wrappedDescription}`);
 				}
 			}
 		}
@@ -298,7 +393,14 @@ export class Shell {
 	}
 
 	/**
-	 * Handle user input
+	 * @private
+	 * @async
+	 * @method handleInput
+	 * @description Processes the completed user input string (after Enter is pressed).
+	 * Adds command to history, handles built-in commands (/exit, /clear),
+	 * executes commands via CommandRegistry, and displays errors or results.
+	 * @param {string} input - The raw input string from the buffer.
+	 * @returns {Promise<void>}
 	 */
 	private async handleInput(input: string): Promise<void> {
 		const command = input.trim();
@@ -367,18 +469,26 @@ export class Shell {
 	}
 
 	/**
-	 * Handle backspace input
+	 * @private
+	 * @method handleBackspace
+	 * @description Handles the Backspace key press by deleting the character before the cursor.
+	 * @deprecated Use {@link deleteBeforeCursor} instead.
 	 */
 	private handleBackspace(): void {
-		if (this.buffer.length > 0) {
-			this.buffer = this.buffer.slice(0, -1);
-			this.layout.updateInput(this.prompt + this.buffer);
-			this.layout.render(Deno.stdout);
+		// This method is likely superseded by deleteBeforeCursor called from startReading
+		if (this.cursorPosition > 0) {
+			this.deleteBeforeCursor(); // Delegate to the cursor-aware method
 		}
 	}
 
 	/**
-	 * Start reading from stdin
+	 * @private
+	 * @async
+	 * @method startReading
+	 * @description Enters the main input loop, reading from stdin, decoding input,
+	 * handling escape sequences (arrows, special keys), printable characters,
+	 * backspace, tab completion, enter key, and Ctrl+C.
+	 * @returns {Promise<void>} Resolves when the shell stops running or stdin closes.
 	 */
 	private async startReading(): Promise<void> {
 		const buffer = new Uint8Array(1024);
@@ -387,214 +497,270 @@ export class Shell {
 
 		while (this.isRunning) {
 			const n = await Deno.stdin.read(buffer);
-			if (n === null) break;
+			if (n === null) break; // Stdin closed
+
+			const currentInputBytes = buffer.subarray(0, n);
 
 			// Check if this is a scroll-related key first
-			if (this.layout.handleScrollKeys(buffer.subarray(0, n))) {
-				// Key was handled by scroll handler
+			// Check if this is a scroll-related key first
+			if (this.layout.handleScrollKeys(currentInputBytes)) {
+				// Key was handled by scroll handler, render the scrolled view
+				this.layout.render(Deno.stdout);
 				continue;
 			}
 
-			const input = decoder.decode(buffer.subarray(0, n));
+			const input = decoder.decode(currentInputBytes);
 			for (let i = 0; i < input.length; i++) {
 				const char = input[i];
 				const charCode = char.charCodeAt(0);
 
-				// Handle escape sequences
-				if (escapeState === 0 && char === '\x1B') {
+				// --- Escape Sequence Handling ---
+				if (escapeState === 0 && char === '\x1B') { // ESC
 					escapeState = 1;
 					escapeBuffer = '\x1B';
 					continue;
 				}
 
-				if (escapeState === 1) {
+				if (escapeState === 1) { // After ESC
 					escapeBuffer += char;
-					if (char === '[') {
+					if (char === '[') { // CSI (Control Sequence Introducer)
 						escapeState = 2;
-						continue;
-					} else {
-						// Not a CSI sequence
+					} else { // Not a CSI sequence (e.g., Alt+key) - ignore for now
 						escapeState = 0;
 						escapeBuffer = '';
 					}
-				}
-
-				if (escapeState === 2) {
-					escapeBuffer += char;
-
-					// Check for complete escape sequences
-					if (char === UP_ARROW || char === DOWN_ARROW) {
-						this.handleArrowKey(char);
-						escapeState = 0;
-						escapeBuffer = '';
-						continue;
-					} else if (char === LEFT_ARROW) {
-						this.moveCursorLeft();
-						escapeState = 0;
-						escapeBuffer = '';
-						continue;
-					} else if (char === RIGHT_ARROW) {
-						this.moveCursorRight();
-						escapeState = 0;
-						escapeBuffer = '';
-						continue;
-					} else if (escapeBuffer.endsWith(PAGE_UP) || escapeBuffer.endsWith(PAGE_DOWN)) {
-						// Let these be handled in the next iteration by the layout manager
-						break;
-					} else if (/[0-9;]/.test(char)) {
-						// This could be part of a longer sequence like Shift+arrows
-						continue;
-					} else {
-						// Some other escape sequence we don't handle
-						escapeState = 0;
-						escapeBuffer = '';
-					}
-				}
-
-				// Reset escape state if sequence is incomplete
-				if (escapeState > 0 && !(/[0-9;[\x1B]/.test(char))) {
-					escapeState = 0;
-					escapeBuffer = '';
 					continue;
 				}
 
-				// Handle regular input
-				if (escapeState === 0) {
-					if (char === '\r' || char === '\n') {
-						// On enter key, process the command
-						const command = this.buffer.trim();
-						if (command && (!this.history.length || this.history[this.history.length - 1] !== command)) {
-							this.history.push(command);
+				if (escapeState === 2) { // Inside CSI sequence
+					escapeBuffer += char;
+					let handled = false;
+
+					// Check for complete, known sequences ending with a letter or '~'
+					if (char >= '@' && char <= '~') {
+						switch (escapeBuffer) {
+							case '\x1B[A': // Up Arrow
+								this.handleArrowKey(UP_ARROW);
+								handled = true;
+								break;
+							case '\x1B[B': // Down Arrow
+								this.handleArrowKey(DOWN_ARROW);
+								handled = true;
+								break;
+							case '\x1B[C': // Right Arrow
+								this.moveCursorRight();
+								handled = true;
+								break;
+							case '\x1B[D': // Left Arrow
+								this.moveCursorLeft();
+								handled = true;
+								break;
+							case '\x1B[5~': // Page Up
+							case '\x1B[6~': // Page Down
+								// These are handled by layout.handleScrollKeys, but we reset state here
+								handled = true;
+								break;
+							// Add more sequences if needed (e.g., Home, End, Delete)
+							// case '\x1B[H': // Home
+							// case '\x1B[F': // End
+							// case '\x1B[3~': // Delete
 						}
-						this.historyIndex = -1;
-						this.tempBuffer = '';
-						this.write('\n'); // Add a newline for command execution
-						this.buffer = '';
-						this.cursorPosition = 0; // Reset cursor position
-						await this.handleInput(command);
-					} else if (char === CTRL_C) {
+
+						if (handled) {
+							escapeState = 0;
+							escapeBuffer = '';
+						} else {
+							// Unknown sequence ending, reset state
+							escapeState = 0;
+							escapeBuffer = '';
+						}
+					} else if (!/[0-9;]/.test(char)) {
+						// Invalid character within sequence, reset state
+						escapeState = 0;
+						escapeBuffer = '';
+					}
+					// If still in sequence (e.g., waiting for numbers/semicolons), continue loop
+					if (escapeState === 2) continue;
+				}
+
+				// --- Regular Input Handling (if not in escape sequence) ---
+				if (escapeState === 0) {
+					if (char === '\r' || char === '\n') { // Enter key
+						const commandToProcess = this.buffer; // Process the whole buffer
+						this.write('\n'); // Move to next line in output
+						this.buffer = ''; // Clear buffer for next input
+						this.cursorPosition = 0; // Reset cursor
+						await this.handleInput(commandToProcess); // Process and potentially show prompt
+					} else if (charCode === 3) { // Ctrl+C
 						this.write('^C\n');
 						this.buffer = '';
-						this.cursorPosition = 0; // Reset cursor position
-						this.historyIndex = -1;
-						this.showPrompt();
-					} else if (char === '\b' || charCode === 127) { // Backspace (^H or DEL)
-						this.deleteBeforeCursor(); // Use the new cursor-aware deletion
+						this.cursorPosition = 0;
+						this.historyIndex = -1; // Reset history navigation
+						this.tempBuffer = '';
+						this.showPrompt(); // Show a fresh prompt
+					} else if (char === '\b' || charCode === 127) { // Backspace (ASCII 8 or 127)
+						this.deleteBeforeCursor(); // Handles buffer, cursor, and rendering
 					} else if (charCode === TAB) { // Tab key
-						this.handleTabCompletion();
-					} else if (char >= ' ') { // Printable characters
-						this.insertAtCursor(char); // Use the new cursor-aware insertion
+						this.handleTabCompletion(); // Handles completion, suggestions, rendering
+					} else if (charCode >= 32 && charCode !== 127) { // Printable characters (excluding DEL)
+						this.insertAtCursor(char); // Handles buffer, cursor, and rendering
 					}
+					// Ignore other control characters for now
 				}
 			}
 		}
 	}
 
 	/**
-	 * Start the shell
+	 * @public
+	 * @async
+	 * @method start
+	 * @description Initializes the shell, sets the terminal to raw mode, displays a welcome message,
+	 * shows the initial prompt, and starts the input reading loop.
+	 * @returns {Promise<void>}
 	 */
 	public async start(): Promise<void> {
 		// Configure terminal
 		try {
-			await Deno.stdin.setRaw(true);
+			// Make sure TTY properties are available
+			if (Deno.stdin.isTerminal()) {
+				await Deno.stdin.setRaw(true);
+			} else {
+				this.write(colors.formatError('Terminal Error', 'Standard input is not a TTY. Raw mode not set.') + '\n');
+				// Decide if you want to exit or proceed with limited functionality
+				// return;
+			}
 		} catch (error: unknown) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			this.write(colors.formatError('Terminal Error', `Failed to set raw mode: ${errorMessage}`) + '\n');
-			return;
+			return; // Exit if raw mode fails
 		}
 
 		this.isRunning = true;
-		this.clearScreen();
+		this.clearScreen(); // Initial clear
 
 		// Batch welcome message content together
-		// Write welcome message
+		let termWidth = 80; // Default width
+		try {
+			termWidth = Deno.consoleSize().columns;
+		} catch (_e) { /* Ignore error, use default */ }
 		const welcomeMessage = [
 			colors.header(`Welcome to ${this.name}`),
-			colors.border(80),
+			colors.border(termWidth), // Use dynamic width
 			colors.formatInfo(`Commands can be entered with or without a leading slash (e.g., 'clear' or '/clear').`),
 			colors.formatInfo(`Use '/exit' to quit.`),
 			colors.formatInfo(`Press Tab for command completion.`),
 			colors.formatInfo(`Use arrow keys (↑/↓) for history and (←/→) for cursor navigation.`),
-			colors.formatInfo(`Use PageUp/PageDown or Shift+Arrow keys to scroll through output history.`),
+			colors.formatInfo(`Use PageUp/PageDown or Shift+Up/Down to scroll through output history.`),
 			colors.formatInfo(`Press ESC to exit scroll mode and return to most recent output.`),
-			colors.border(80),
+			colors.border(termWidth), // Use dynamic width
 		].join('\n') + '\n';
 
-		// Write and render in one go
+		// Write and render welcome message
 		this.write(welcomeMessage);
-		this.layout.render(Deno.stdout);
+		this.layout.render(Deno.stdout); // Render after writing welcome message
 
-		// Show prompt without re-rendering everything
-		this.layout.updateInputOnly(this.prompt);
-		await this.startReading();
+		// Show initial prompt and start reading
+		this.showPrompt(); // This also renders
+		await this.startReading(); // Start the input loop
 	}
 
 	/**
-	 * Shutdown the shell
+	 * @private
+	 * @async
+	 * @method shutdown
+	 * @description Stops the shell, restores the terminal from raw mode, prints a shutdown message,
+	 * and exits the Deno process.
+	 * @returns {Promise<void>}
 	 */
 	private async shutdown(): Promise<void> {
+		if (!this.isRunning) return; // Prevent multiple shutdowns
 		this.isRunning = false;
-		// Restore terminal
-		await Deno.stdin.setRaw(false);
+		// Restore terminal only if it was set to raw mode
+		try {
+			if (Deno.stdin.isTerminal()) {
+				await Deno.stdin.setRaw(false);
+			}
+		} catch (error: unknown) {
+			// Log error but proceed with shutdown
+			console.error(colors.formatError('Terminal Error', `Failed to restore terminal mode: ${error instanceof Error ? error.message : String(error)}`));
+		}
+
 		this.write('\n' + colors.formatSuccess('Shutting down...') + '\n');
+		this.layout.render(Deno.stdout); // Ensure shutdown message is visible
 		Deno.exit(0);
 	}
 
 	/**
-	 * Update cursor position within valid range
+	 * @private
+	 * @method updateCursorPosition
+	 * @description Safely updates the internal cursor position, clamping it within the bounds of the current buffer length.
+	 * @param {number} newPosition - The desired new cursor position.
 	 */
 	private updateCursorPosition(newPosition: number): void {
 		this.cursorPosition = Math.max(0, Math.min(newPosition, this.buffer.length));
 	}
 
 	/**
-	 * Move cursor one position left
+	 * @private
+	 * @method moveCursorLeft
+	 * @description Moves the cursor one position to the left, if possible, and updates the display.
 	 */
 	private moveCursorLeft(): void {
 		if (this.cursorPosition > 0) {
 			this.updateCursorPosition(this.cursorPosition - 1);
-			this.updateInputWithCursor();
+			this.updateInputWithCursor(); // Renders implicitly
 		}
 	}
 
 	/**
-	 * Move cursor one position right
+	 * @private
+	 * @method moveCursorRight
+	 * @description Moves the cursor one position to the right, if possible, and updates the display.
 	 */
 	private moveCursorRight(): void {
 		if (this.cursorPosition < this.buffer.length) {
 			this.updateCursorPosition(this.cursorPosition + 1);
-			this.updateInputWithCursor();
+			this.updateInputWithCursor(); // Renders implicitly
 		}
 	}
 
 	/**
-	 * Update display with current cursor position
+	 * @private
+	 * @method updateInputWithCursor
+	 * @description Updates the input line display in the layout, ensuring the cursor is positioned correctly. Triggers a render.
 	 */
 	private updateInputWithCursor(): void {
 		this.layout.updateInputWithCursor(this.prompt + this.buffer, this.prompt.length + this.cursorPosition);
+		this.layout.render(Deno.stdout); // Render the change
 	}
 
 	/**
-	 * Insert character at current cursor position
+	 * @private
+	 * @method insertAtCursor
+	 * @description Inserts a character into the buffer at the current cursor position, updates the cursor position, and refreshes the display.
+	 * @param {string} char - The character to insert.
 	 */
 	private insertAtCursor(char: string): void {
 		const pre = this.buffer.slice(0, this.cursorPosition);
 		const post = this.buffer.slice(this.cursorPosition);
 		this.buffer = pre + char + post;
-		this.cursorPosition++;
-		this.updateInputWithCursor();
+		this.cursorPosition++; // Move cursor after the inserted character
+		this.updateInputWithCursor(); // Renders implicitly
 	}
 
 	/**
-	 * Delete character before cursor position
+	 * @private
+	 * @method deleteBeforeCursor
+	 * @description Deletes the character immediately before the current cursor position, updates the cursor position, and refreshes the display.
 	 */
 	private deleteBeforeCursor(): void {
 		if (this.cursorPosition > 0) {
 			const pre = this.buffer.slice(0, this.cursorPosition - 1);
 			const post = this.buffer.slice(this.cursorPosition);
 			this.buffer = pre + post;
-			this.cursorPosition--;
-			this.updateInputWithCursor();
+			this.cursorPosition--; // Move cursor back
+			this.updateInputWithCursor(); // Renders implicitly
 		}
 	}
 }
