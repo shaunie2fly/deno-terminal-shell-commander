@@ -16,6 +16,7 @@ export type { ShellOptions, ShellEvent, EventHandler } from "./src/shell/types.t
 // Command system exports
 export type { Command, CommandContext, CommandState } from "./src/commands/types.ts"; // Added CommandContext
 export { CommandRegistry } from "./src/commands/Registry.ts";
+export type { ParsedArguments } from './src/commands/parser.ts';
 
 // Remote shell exports 
 export { ShellServer } from "./src/remote/server.ts";
@@ -54,13 +55,3 @@ export {
   createCustomTransformer
 } from "./src/output/transformers.ts";
 
-// Legacy output transformers (for backward compatibility)
-export {
-  PrefixTransformer,
-  FilterTransformer,
-  TimestampTransformer,
-  errorTransformer,
-  warningTransformer,
-  successTransformer,
-  infoTransformer
-} from "./src/output/transformers.ts";

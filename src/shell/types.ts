@@ -3,12 +3,25 @@
  * @module
  */
 import * as rt from 'runtypes';
-import { Command } from '../commands/types.ts';
+import type { Command } from '../commands/types.ts';
 
 /**
  * Configuration options for the Shell
  */
-export const ShellOptionsRT = rt.Record({
+// Define the structure for the Record type annotation
+type ShellOptionsRecordType = {
+	// Wrap the Optional type with Constraint where .withConstraint is used
+	name: rt.Constraint<rt.Optional<rt.String>>;
+	prompt: rt.Constraint<rt.Optional<rt.String>>;
+	width: rt.Constraint<rt.Optional<rt.Number>>;
+	height: rt.Constraint<rt.Optional<rt.Number>>;
+	// commands is just Optional<Array>, no constraint was added
+	commands: rt.Optional<rt.Array<rt.Unknown, false>>;
+};
+
+// Add the explicit type annotation using rt.Record<ShellOptionsRecordType>
+// Specify both type arguments for Record: Structure type and readonly flag (false)
+export const ShellOptionsRT: rt.Record<ShellOptionsRecordType, false> = rt.Record({
 	name: rt.String.optional().withConstraint((s) => !s || s.length > 0 || 'Shell name cannot be empty'),
 	prompt: rt.String.optional().withConstraint((s) => !s || s.length > 0 || 'Prompt cannot be empty'),
 	width: rt.Number.optional().withConstraint((n) => !n || n > 0 || 'Width must be positive'),
