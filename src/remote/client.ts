@@ -56,7 +56,7 @@ export class ShellClient {
 	 * @param options - Configuration options for the client
 	 */
 	constructor(options: ShellClientOptions) {
-	console.log('[ShellClient] Creating instance with options:', options);
+		console.log('[ShellClient] Creating instance with options:', options);
 		// Set defaults for optional parameters
 		this.options = {
 			...options,
@@ -76,7 +76,7 @@ export class ShellClient {
 		this.inputStream = new TransformStream<string, string>();
 		this.inputReader = this.inputStream.readable.getReader();
 		console.log('[ShellClient] Instance created and streams initialized.');
-}
+	}
 
 	/**
 	 * Connect to the remote shell server
@@ -84,25 +84,23 @@ export class ShellClient {
 	 */
 	public async connect(): Promise<void> {
 		if (this.connected) {
-		console.log('[ShellClient.connect] Already connected.');
-  return;
- }
+			console.log('[ShellClient.connect] Already connected.');
+			return;
+		}
 
-	console.log('[ShellClient.connect] Attempting connection...');
+		console.log('[ShellClient.connect] Attempting connection...');
 		try {
 			// Establish connection based on the connection type
 			if (this.options.connectionType === 'unix' && this.options.socketPath) {
-		// console.log(`[ShellClient.connect] Connecting via Unix socket: ${this.options.socketPath}`);
 				await this.connectUnixSocket();
 			} else if (this.options.port) { // Default to TCP if port is specified
-		// console.log(`[ShellClient.connect] Connecting via TCP: ${this.options.host}:${this.options.port}`);
-   await this.connectTcp();
-  } else {
-		console.error('[ShellClient.connect] Invalid connection options provided.');
+				await this.connectTcp();
+			} else {
+				console.error('[ShellClient.connect] Invalid connection options provided.');
 				throw new Error('Invalid connection options: must specify port for TCP or socketPath for Unix');
 			}
 
-	console.log('[ShellClient.connect] Connection established.');
+			console.log('[ShellClient.connect] Connection established.');
 			this.connected = true;
 			this.reconnectAttempts = 0;
 
@@ -113,7 +111,7 @@ export class ShellClient {
 			if (this.options.auth) {
 				await this.authenticate(); // This emits CONNECT event on success
 			} else {
-		console.log('[ShellClient.connect] No authentication required. Emitting CONNECT event.');
+				console.log('[ShellClient.connect] No authentication required. Emitting CONNECT event.');
 				// No authentication needed
 				this.authenticated = true;
 				this.emitEvent(ClientEvent.CONNECT, { authenticated: true });
@@ -123,24 +121,22 @@ export class ShellClient {
 			// After connection and potential authentication, start reading from the input stream
 			// and sending data to the server.
 			this.processInputStream().catch((err: unknown) => { // Add type to err
-				console.error("[ShellClient] Error processing input stream:", err);
+				console.error('[ShellClient] Error processing input stream:', err);
 				this.handleConnectionError(err);
 			});
 			// -------------------------------------
-
 		} catch (error) {
 			this.handleConnectionError(error); // Handles emitting error and disconnect
-	console.error('[ShellClient.connect] Connection failed:', error);
+			console.error('[ShellClient.connect] Connection failed:', error);
 			// No need to throw again if handleConnectionError manages state
 		}
 	}
-
 
 	/**
 	 * Connect via Unix domain socket
 	 */
 	private async connectUnixSocket(): Promise<void> {
-	console.log('[ShellClient.connectUnixSocket] Attempting connection...');
+		console.log('[ShellClient.connectUnixSocket] Attempting connection...');
 		try {
 			const conn = await Deno.connect({
 				path: this.options.socketPath!,
@@ -148,7 +144,7 @@ export class ShellClient {
 			});
 			this.connection = conn;
 		} catch (error) {
-		console.error('[ShellClient.connectUnixSocket] Connection failed:', error);
+			console.error('[ShellClient.connectUnixSocket] Connection failed:', error);
 			throw new Error(`Unix socket connection failed: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
@@ -157,7 +153,7 @@ export class ShellClient {
 	 * Connect via TCP
 	 */
 	private async connectTcp(): Promise<void> {
-	console.log('[ShellClient.connectTcp] Attempting connection...');
+		console.log('[ShellClient.connectTcp] Attempting connection...');
 		try {
 			const conn = await Deno.connect({
 				hostname: this.options.host,
@@ -165,7 +161,7 @@ export class ShellClient {
 			});
 			this.connection = conn;
 		} catch (error) {
-		console.error('[ShellClient.connectTcp] Connection failed:', error);
+			console.error('[ShellClient.connectTcp] Connection failed:', error);
 			throw new Error(`TCP connection failed: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
@@ -174,7 +170,7 @@ export class ShellClient {
 	 * Authenticate with the server
 	 */
 	private async authenticate(): Promise<void> {
-	console.log('[ShellClient.authenticate] Starting authentication...');
+		console.log('[ShellClient.authenticate] Starting authentication...');
 		const authType = this.getAuthType();
 
 		const authRequest: ProtocolMessage = {
@@ -189,7 +185,6 @@ export class ShellClient {
 			},
 		};
 
-	// console.log(`[ShellClient.authenticate] Sending auth request with type: ${authType}`);
 		// Send authentication request
 		try {
 			const response = await this.sendAndWaitForResponse(authRequest, MessageType.AUTH_RESPONSE);
@@ -197,12 +192,11 @@ export class ShellClient {
 			// Type guard to ensure we have an AuthResponseMessage
 			if (response.type === MessageType.AUTH_RESPONSE) {
 				if (response.payload.success) {
-			// console.log(`[ShellClient.authenticate] Authentication successful. Session ID: ${response.payload.sessionId}`);
 					this.authenticated = true;
 					this.sessionId = response.payload.sessionId;
 					this.emitEvent(ClientEvent.CONNECT, { authenticated: true, sessionId: this.sessionId }); // Emit CONNECT here after auth success
 				} else {
-			console.error(`[ShellClient.authenticate] Authentication failed: ${response.payload.error || 'Unknown error'}`);
+					console.error(`[ShellClient.authenticate] Authentication failed: ${response.payload.error || 'Unknown error'}`);
 					throw new Error(`Authentication failed: ${response.payload.error || 'Unknown error'}`);
 				}
 			} else {
@@ -211,7 +205,7 @@ export class ShellClient {
 				throw new Error(`Authentication failed: Unexpected response type ${response.type}`);
 			}
 		} catch (error) {
-		console.error('[ShellClient.authenticate] Error during authentication:', error);
+			console.error('[ShellClient.authenticate] Error during authentication:', error);
 			this.authenticated = false;
 			// Let the error propagate up to connect() which calls handleConnectionError
 			throw error;
@@ -222,15 +216,15 @@ export class ShellClient {
 	 * Determine the authentication type based on provided credentials
 	 */
 	private getAuthType(): AuthType {
-	console.log('[ShellClient.getAuthType] Determining authentication type...');
- if (this.options.auth?.token) {
-		console.log('[ShellClient.getAuthType] Using TOKEN authentication.');
-  return AuthType.TOKEN;
- } else if (this.options.auth?.username && this.options.auth?.password) {
-		console.log('[ShellClient.getAuthType] Using BASIC authentication.');
-  return AuthType.BASIC;
- } else {
-		console.log('[ShellClient.getAuthType] Using NONE authentication.');
+		console.log('[ShellClient.getAuthType] Determining authentication type...');
+		if (this.options.auth?.token) {
+			console.log('[ShellClient.getAuthType] Using TOKEN authentication.');
+			return AuthType.TOKEN;
+		} else if (this.options.auth?.username && this.options.auth?.password) {
+			console.log('[ShellClient.getAuthType] Using BASIC authentication.');
+			return AuthType.BASIC;
+		} else {
+			console.log('[ShellClient.getAuthType] Using NONE authentication.');
 			return AuthType.NONE;
 		}
 	}
@@ -239,9 +233,9 @@ export class ShellClient {
 	 * Process incoming messages from the server (runs in background)
 	 */
 	private async processMessages(): Promise<void> {
-	console.log('[ShellClient.processMessages] Starting message processing loop.');
- if (!this.connection) {
-		console.error('[ShellClient.processMessages] No connection available. Aborting.');
+		console.log('[ShellClient.processMessages] Starting message processing loop.');
+		if (!this.connection) {
+			console.error('[ShellClient.processMessages] No connection available. Aborting.');
 			return; // Should not happen if called correctly after connect
 		}
 
@@ -251,12 +245,12 @@ export class ShellClient {
 
 		try {
 			while (this.connected) {
-   const n = await conn.read(buffer);
-   if (n === null) {
-			console.log('[ShellClient.processMessages] Connection closed by peer (read returned null).');
-    this.handleDisconnect('End of stream');
-    break;
-   }
+				const n = await conn.read(buffer);
+				if (n === null) {
+					console.log('[ShellClient.processMessages] Connection closed by peer (read returned null).');
+					this.handleDisconnect('End of stream');
+					break;
+				}
 
 				const chunk = new TextDecoder().decode(buffer.subarray(0, n));
 				const lines = (leftover + chunk).split('\n');
@@ -271,8 +265,8 @@ export class ShellClient {
 		} catch (error) {
 			// Only handle error if still connected (avoid double handling on disconnect)
 			if (this.connected) {
-			    this.handleConnectionError(error);
-		        console.error('[ShellClient.processMessages] Error during message processing:', error);
+				this.handleConnectionError(error);
+				console.error('[ShellClient.processMessages] Error during message processing:', error);
 			} else {
 				console.log('[ShellClient.processMessages] Ignoring read error on already disconnected client.');
 			}
@@ -285,14 +279,12 @@ export class ShellClient {
 	 * Handle a single incoming message line
 	 */
 	private handleMessage(messageText: string): void {
-	// // console.log(`[ShellClient.handleMessage] Raw message received: ${messageText}`); // Can be verbose
 		try {
 			const message = JSON.parse(messageText);
 			// Use Runtypes for robust validation
 			const validationResult = ProtocolMessageRT.validate(message);
 
 			if (!validationResult.success) {
-		// console.warn('[ShellClient.handleMessage] Invalid message format received:', validationResult.message, 'Original text:', messageText);
 				this.emitEvent(ClientEvent.ERROR, {
 					message: 'Invalid message format',
 					details: validationResult.message,
@@ -303,22 +295,20 @@ export class ShellClient {
 			const validatedMessage = validationResult.value; // Use validated message
 
 			// Process based on message type
-	// console.log(`[ShellClient.handleMessage] Processing message type: ${validatedMessage.type}, ID: ${validatedMessage.id}`);
 			switch (validatedMessage.type) {
 				case MessageType.AUTH_RESPONSE:
-		console.log('[ShellClient.handleMessage] Resolving promise for AUTH_RESPONSE.');
+					console.log('[ShellClient.handleMessage] Resolving promise for AUTH_RESPONSE.');
 					this.resolvePromise(validatedMessage);
 					break;
 
 				case MessageType.COMMAND_RESPONSE: // Keep for potential non-shell commands
-		// console.log(`[ShellClient.handleMessage] Resolving promise for COMMAND_RESPONSE (ID: ${validatedMessage.id}).`);
-    this.resolvePromise(validatedMessage);
-    break;
+									this.resolvePromise(validatedMessage);
+					break;
 
-   case MessageType.OUTPUT:
-		// Write to the output stream which the client application consumes
+				case MessageType.OUTPUT:
+					// Write to the output stream which the client application consumes
 					this.outputWriter.write(validatedMessage.payload.content).catch((error) => {
-			console.error('[ShellClient.handleMessage] Error writing to output stream:', error);
+						console.error('[ShellClient.handleMessage] Error writing to output stream:', error);
 						this.emitEvent(ClientEvent.ERROR, {
 							message: 'Failed to write to output stream',
 							error,
@@ -335,7 +325,9 @@ export class ShellClient {
 					break;
 
 				case MessageType.ERROR:
-		console.error(`[ShellClient.handleMessage] Received ERROR message from server: ${validatedMessage.payload.message} (Code: ${validatedMessage.payload.code})`);
+					console.error(
+						`[ShellClient.handleMessage] Received ERROR message from server: ${validatedMessage.payload.message} (Code: ${validatedMessage.payload.code})`,
+					);
 					// Emit error event
 					this.emitEvent(ClientEvent.ERROR, {
 						message: validatedMessage.payload.message,
@@ -351,13 +343,11 @@ export class ShellClient {
 						this.handleDisconnect(reason);
 					} else {
 						// Should not happen due to switch case, but satisfies TS stricter checks
-						console.error("[ShellClient.handleMessage] Mismatched type in DISCONNECT case.");
+						console.error('[ShellClient.handleMessage] Mismatched type in DISCONNECT case.');
 					}
 					break;
 
 				case MessageType.PING:
-		console.log('[ShellClient.handleMessage] Received PING, sending PONG.');
-					// Respond with pong
 					this.sendMessage({
 						id: crypto.randomUUID(),
 						type: MessageType.PONG,
@@ -369,22 +359,28 @@ export class ShellClient {
 					break;
 
 				case MessageType.PONG:
-    // Nothing to do for pong response, maybe track latency later
-    break;
+					// Nothing to do for pong response, maybe track latency later
+					break;
 
-                // INPUT messages are sent *by* the client, not received
-				// case MessageType.INPUT:
-				//	 // console.warn('[ShellClient.handleMessage] Received INPUT message unexpectedly.');
-				//	 break;
-
-   default:
-		// This should ideally not happen with Runtypes validation, but good for safety
-		console.warn(`[ShellClient.handleMessage] Unhandled message type received: ${(validatedMessage as any).type}`);
+				// Add cases for types sent *by* the client, which shouldn't be received *from* the server.
+				case MessageType.AUTH_REQUEST:
+				case MessageType.COMMAND_REQUEST: // Also deprecated
+				case MessageType.INPUT:
+				case MessageType.RESIZE:
+					console.warn(`[ShellClient.handleMessage] Received unexpected message type from server (should be client->server only): ${validatedMessage.type}. Ignoring.`);
+					break;
+				default: {
+					// This is now truly unreachable if the switch handles all members of MessageType enum
+					// that are part of the ProtocolMessage union validated by ProtocolMessageRT.
+					const unhandled: never = validatedMessage; // This should now type-check correctly.
+					console.error(`[ShellClient.handleMessage] FATAL: Unhandled validated message type reached default case. This indicates a bug. Type: ${(unhandled as ProtocolMessage).type}`);
 					this.emitEvent(ClientEvent.ERROR, {
-						message: `Unhandled message type: ${(validatedMessage as any).type}`,
+						message: 'Internal error: Unhandled message type',
+						rawMessageStart: messageText.substring(0, 100),
 					});
 					break;
-			}
+				}
+			} // End switch
 		} catch (error) {
 			console.error('[ShellClient.handleMessage] Error parsing or handling message:', error, 'Original text:', messageText);
 			this.emitEvent(ClientEvent.ERROR, {
@@ -398,17 +394,15 @@ export class ShellClient {
 	 * Resolve a pending promise for a message response (e.g., for Auth)
 	 */
 	private resolvePromise(message: ProtocolMessage): void {
-	// console.log(`[ShellClient.resolvePromise] Attempting to resolve promise for message ID: ${message.id}`);
 		const requestId = message.id; // Use the ID from the response which should match original request
 		const pendingRequest = this.pendingCommands.get(requestId);
 
 		if (pendingRequest) {
-		// console.log(`[ShellClient.resolvePromise] Found pending request for ID ${requestId}. Resolving.`);
-  pendingRequest.resolve(message); // Resolve with the full validated message
-  this.pendingCommands.delete(requestId);
-	} else {
-		// This might happen if a response arrives after a timeout, or it's an unsolicited response
-		console.warn(`[ShellClient.resolvePromise] No pending request found for message ID: ${requestId}. Might be a duplicate or late response.`);
+			pendingRequest.resolve(message); // Resolve with the full validated message
+			this.pendingCommands.delete(requestId);
+		} else {
+			// This might happen if a response arrives after a timeout, or it's an unsolicited response
+			console.warn(`[ShellClient.resolvePromise] No pending request found for message ID: ${requestId}. Might be a duplicate or late response.`);
 		}
 	}
 
@@ -421,11 +415,10 @@ export class ShellClient {
 	 * @returns Promise that resolves with the validated response message
 	 */
 	private sendAndWaitForResponse(message: ProtocolMessage, expectedResponseType: MessageType, timeout = 30000): Promise<ProtocolMessage> {
-	// console.log(`[ShellClient.sendAndWait] Sending message ID ${message.id}, Type: ${message.type}. Expecting ${expectedResponseType}. Timeout: ${timeout}ms.`);
- return new Promise((resolve, reject) => {
-  // Set up timeout
-  const timeoutId = setTimeout(() => {
-		console.warn(`[ShellClient.sendAndWait] Timeout waiting for ${expectedResponseType} response for message ID ${message.id}.`);
+		return new Promise((resolve, reject) => {
+			// Set up timeout
+			const timeoutId = setTimeout(() => {
+				console.warn(`[ShellClient.sendAndWait] Timeout waiting for ${expectedResponseType} response for message ID ${message.id}.`);
 				this.pendingCommands.delete(message.id);
 				reject(new Error(`Timeout waiting for ${expectedResponseType} response`));
 			}, timeout);
@@ -435,19 +428,21 @@ export class ShellClient {
 				resolve: (response) => { // response is expected to be a ProtocolMessage object passed from resolvePromise
 					clearTimeout(timeoutId);
 					const validatedResponse = response as ProtocolMessage; // Assume resolvePromise gives correct type
-		// console.log(`[ShellClient.sendAndWait] Received response for message ID ${message.id}. Validating type...`);
+					// console.log(`[ShellClient.sendAndWait] Received response for message ID ${message.id}. Validating type...`);
 
-    if (validatedResponse.type !== expectedResponseType) {
-			console.error(`[ShellClient.sendAndWait] Unexpected response type for ID ${message.id}. Expected ${expectedResponseType}, got ${validatedResponse.type}.`);
-     reject(new Error(`Expected ${expectedResponseType}, got ${validatedResponse.type}`));
-    } else {
-			// console.log(`[ShellClient.sendAndWait] Response validated for ID ${message.id}. Resolving promise.`);
-     resolve(validatedResponse); // Resolve with the validated message
-    }
-   },
-   reject: (error) => {
-    clearTimeout(timeoutId);
-		console.error(`[ShellClient.sendAndWait] Promise rejected for message ID ${message.id}:`, error);
+					if (validatedResponse.type !== expectedResponseType) {
+						console.error(
+							`[ShellClient.sendAndWait] Unexpected response type for ID ${message.id}. Expected ${expectedResponseType}, got ${validatedResponse.type}.`,
+						);
+						reject(new Error(`Expected ${expectedResponseType}, got ${validatedResponse.type}`));
+					} else {
+						// console.log(`[ShellClient.sendAndWait] Response validated for ID ${message.id}. Resolving promise.`);
+						resolve(validatedResponse); // Resolve with the validated message
+					}
+				},
+				reject: (error) => {
+					clearTimeout(timeoutId);
+					console.error(`[ShellClient.sendAndWait] Promise rejected for message ID ${message.id}:`, error);
 					reject(error);
 				},
 			});
@@ -455,7 +450,7 @@ export class ShellClient {
 			// Send the message
 			this.sendMessage(message).catch((error) => {
 				clearTimeout(timeoutId);
-		console.error(`[ShellClient.sendAndWait] Error sending message ID ${message.id}:`, error);
+				console.error(`[ShellClient.sendAndWait] Error sending message ID ${message.id}:`, error);
 				this.pendingCommands.delete(message.id); // Clean up if send fails
 				reject(error);
 			});
@@ -467,9 +462,9 @@ export class ShellClient {
 	 * @param message - The message to send
 	 */
 	private async sendMessage(message: ProtocolMessage): Promise<void> {
-	// // console.log(`[ShellClient.sendMessage] Preparing to send message ID: ${message.id}, Type: ${message.type}`); // Can be verbose
- if (!this.connected || !this.connection) {
-		console.error(`[ShellClient.sendMessage] Attempted to send message ID ${message.id} while not connected.`);
+		
+		if (!this.connected || !this.connection) {
+			console.error(`[ShellClient.sendMessage] Attempted to send message ID ${message.id} while not connected.`);
 			throw new Error('Not connected to server');
 		}
 
@@ -490,7 +485,6 @@ export class ShellClient {
 	 * @param data - The string data to send (e.g., characters typed by the user).
 	 */
 	public async sendInput(data: string): Promise<void> {
-		// // console.log(`[ShellClient.sendInput] Sending input data: ${data.substring(0,50)}...`); // Can be verbose
 		if (!this.connected) {
 			console.error('[ShellClient.sendInput] Cannot send input: Not connected.');
 			throw new Error('Not connected to server');
@@ -539,7 +533,7 @@ export class ShellClient {
 	 * Handle a connection error (e.g., read/write failure)
 	 */
 	private handleConnectionError(error: unknown): void {
-	console.error('[ShellClient.handleConnectionError] Handling connection error:', error);
+		console.error('[ShellClient.handleConnectionError] Handling connection error:', error);
 		this.emitEvent(ClientEvent.ERROR, {
 			message: 'Connection error',
 			error: error instanceof Error ? error.message : String(error),
@@ -547,7 +541,7 @@ export class ShellClient {
 
 		// Trigger disconnection process if not already disconnected
 		if (this.connected) {
-		    this.handleDisconnect('Connection error');
+			this.handleDisconnect('Connection error');
 		}
 	}
 
@@ -555,9 +549,9 @@ export class ShellClient {
 	 * Handle disconnection from the server (initiated by server, error, or locally)
 	 */
 	private handleDisconnect(reason: string): void {
-	// console.log(`[ShellClient.handleDisconnect] Handling disconnection. Reason: ${reason}`);
- if (!this.connected) {
-		// console.log('[ShellClient.handleDisconnect] Already disconnected.'); // Can be verbose
+		// console.log(`[ShellClient.handleDisconnect] Handling disconnection. Reason: ${reason}`);
+		if (!this.connected) {
+			 console.log('[ShellClient.handleDisconnect] Already disconnected.'); // Can be verbose
 			return;
 		}
 
@@ -568,17 +562,16 @@ export class ShellClient {
 		// Close the connection if it's still open
 		if (this.connection) {
 			try {
-		console.log('[ShellClient.handleDisconnect] Closing underlying connection.');
-   this.connection.close();
-  } catch {
-   // Ignore errors during close
-		// console.warn('[ShellClient.handleDisconnect] Error ignored during connection close.');
-  }
-  this.connection = undefined;
- }
+				console.log('[ShellClient.handleDisconnect] Closing underlying connection.');
+				this.connection.close();
+			} catch {
+				// Ignore errors during close
+				console.warn('[ShellClient.handleDisconnect] Error ignored during connection close.');
+			}
+			this.connection = undefined;
+		}
 
- // Reject all pending commands/requests
-	// console.log(`[ShellClient.handleDisconnect] Rejecting ${this.pendingCommands.size} pending commands.`);
+		// Reject all pending commands/requests
 		for (const [id, { reject }] of this.pendingCommands) {
 			reject(new Error('Disconnected from server'));
 		}
@@ -586,12 +579,15 @@ export class ShellClient {
 
 		// Close the streams to signal end to consumers/producers
 		// Use try-catch as they might already be closing
-		try { this.outputWriter.close(); } catch { /* ignore */ }
-		try { this.inputStream.writable.abort(reason); } catch { /* ignore */ } // Abort writable side
-
+		try {
+			this.outputWriter.close();
+		} catch { /* ignore */ }
+		try {
+			this.inputStream.writable.abort(reason);
+		} catch { /* ignore */ } // Abort writable side
 
 		// Emit disconnect event
-	console.log('[ShellClient.handleDisconnect] Emitting DISCONNECT event.');
+		console.log('[ShellClient.handleDisconnect] Emitting DISCONNECT event.');
 		this.emitEvent(ClientEvent.DISCONNECT, { reason });
 
 		// Attempt reconnection if enabled
@@ -607,25 +603,24 @@ export class ShellClient {
 	 * Schedule a reconnection attempt
 	 */
 	private scheduleReconnect(): void {
-	// console.log(`[ShellClient.scheduleReconnect] Scheduling reconnection attempt ${this.reconnectAttempts + 1}...`);
- if (this.reconnectTimeoutId) {
-		console.log('[ShellClient.scheduleReconnect] Clearing existing reconnect timeout.');
-  clearTimeout(this.reconnectTimeoutId);
- }
+		// console.log(`[ShellClient.scheduleReconnect] Scheduling reconnection attempt ${this.reconnectAttempts + 1}...`);
+		if (this.reconnectTimeoutId) {
+			console.log('[ShellClient.scheduleReconnect] Clearing existing reconnect timeout.');
+			clearTimeout(this.reconnectTimeoutId);
+		}
 
- this.reconnectAttempts++;
- const delay = this.options.reconnectDelay || 5000;
-	// console.log(`[ShellClient.scheduleReconnect] Attempt ${this.reconnectAttempts}/${this.options.maxReconnectAttempts || 5} scheduled in ${delay}ms.`);
+		this.reconnectAttempts++;
+		const delay = this.options.reconnectDelay || 5000;
+		// console.log(`[ShellClient.scheduleReconnect] Attempt ${this.reconnectAttempts}/${this.options.maxReconnectAttempts || 5} scheduled in ${delay}ms.`);
 
- this.reconnectTimeoutId = setTimeout(async () => {
-  this.reconnectTimeoutId = undefined; // Clear ID before attempting
-  try {
-		// console.log(`[ShellClient.scheduleReconnect] Executing reconnection attempt ${this.reconnectAttempts}.`);
-   await this.connect();
-		// If connect succeeds, reconnectAttempts is reset inside connect()
-		// console.log(`[ShellClient.scheduleReconnect] Reconnection attempt ${this.reconnectAttempts} successful.`);
-  } catch (err){ // Catch error from connect()
-		console.error(`[ShellClient.scheduleReconnect] Reconnection attempt ${this.reconnectAttempts} failed:`, err instanceof Error ? err.message : err);
+		this.reconnectTimeoutId = setTimeout(async () => {
+			this.reconnectTimeoutId = undefined; // Clear ID before attempting
+			try {
+				await this.connect();
+				// If connect succeeds, reconnectAttempts is reset inside connect()
+
+			} catch (err) { // Catch error from connect()
+				console.error(`[ShellClient.scheduleReconnect] Reconnection attempt ${this.reconnectAttempts} failed:`, err instanceof Error ? err.message : err);
 				// handleConnectionError is called within connect(), which might trigger another scheduleReconnect if attempts remain.
 			}
 		}, delay);
@@ -635,15 +630,15 @@ export class ShellClient {
 	 * Disconnect from the server manually
 	 */
 	public async disconnect(): Promise<void> {
-	console.log('[ShellClient.disconnect] Manual disconnect initiated.');
- if (!this.connected) {
-		console.log('[ShellClient.disconnect] Already disconnected.');
+		console.log('[ShellClient.disconnect] Manual disconnect initiated.');
+		if (!this.connected) {
+			console.log('[ShellClient.disconnect] Already disconnected.');
 			return;
 		}
 
 		// Cancel any pending reconnection attempts
 		if (this.reconnectTimeoutId) {
-		console.log('[ShellClient.disconnect] Cancelling scheduled reconnect.');
+			console.log('[ShellClient.disconnect] Cancelling scheduled reconnect.');
 			clearTimeout(this.reconnectTimeoutId);
 			this.reconnectTimeoutId = undefined;
 		}
@@ -653,7 +648,7 @@ export class ShellClient {
 		// Send a disconnect message if authenticated and connected
 		if (this.authenticated && this.connection) {
 			try {
-		console.log('[ShellClient.disconnect] Sending DISCONNECT message to server.');
+				console.log('[ShellClient.disconnect] Sending DISCONNECT message to server.');
 				await this.sendMessage({
 					id: crypto.randomUUID(),
 					type: MessageType.DISCONNECT,
@@ -662,8 +657,8 @@ export class ShellClient {
 						reason: 'Client disconnected',
 					},
 				});
-			} catch (error){
-		// console.warn('[ShellClient.disconnect] Error sending disconnect message (proceeding with local disconnect):', error);
+			} catch (error) {
+				 console.warn('[ShellClient.disconnect] Error sending disconnect message (proceeding with local disconnect):', error);
 				// Ignore errors during disconnect message, still perform local cleanup
 			}
 		}
@@ -691,11 +686,10 @@ export class ShellClient {
 	 * Emit an event
 	 */
 	private emitEvent(event: ClientEvent, payload: unknown): void {
-	// // console.log(`[ShellClient.emitEvent] Emitting event: ${event}`, payload); // Log event and payload - can be very verbose
 		this.eventEmitter.emit(event, payload);
 	}
 
-    /** Returns the current connection status */
+	/** Returns the current connection status */
 	public get isConnected(): boolean {
 		return this.connected;
 	}
