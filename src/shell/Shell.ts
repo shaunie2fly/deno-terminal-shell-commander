@@ -2,8 +2,9 @@
  * Shell class - Core shell implementation with instance-based command system
  */
 import * as colors from '../colors.ts';
-import { CommandRegistry } from '../commands/Registry.ts';
-import { Command, CommandContext } from '../commands/types.ts'; // Added CommandContext
+import { Command, CommandContext, ParameterDefinition, CommandResult } from '../commands/types.ts'; // Added CommandResult
+import { CommandRegistry } from '../commands/Registry.ts'; // Import CommandRegistry
+import type { ParsedArguments } from '../commands/parser.ts'; // Import ParsedArguments as type
 import { LayoutManager } from '../ui/layout/layout_manager.ts';
 import { EventHandler, OutputFormat, OutputOptions, ShellEvent, ShellEventType, ShellOptions } from './types.ts';
 
@@ -78,8 +79,27 @@ export class Shell {
 		this.commandRegistry.registerCommand({
 			// deno-lint-ignore require-await
 			name: 'help',
-			description: 'Show available commands',
-			action: () => this.showHelp(),
+			description: 'Show available commands or help for a specific command.',
+			// Action now accepts parsed args
+			action: (context: CommandContext, parsedArgs: ParsedArguments) => {
+				if (parsedArgs.positional.length > 0) {
+					const commandPath = parsedArgs.positional.join(' '); // Join potential subcommand path parts
+					// Attempt to find the command/subcommand in the registry
+					const command = this.commandRegistry.getCommand(commandPath) || this.commandRegistry.getSubcommand(commandPath); // Assuming getSubcommand handles full paths
+
+					if (command) {
+						// TODO: Call a method on commandRegistry to get generated help for 'command'
+						// const helpText = this.commandRegistry.getCommandHelp(commandPath); // Placeholder
+						// context.write(helpText || `Help not available for "${commandPath}".\n`);
+						context.write(`Help requested for specific command: ${commandPath} (Registry method not yet implemented).\n`);
+					} else {
+						context.write(`Unknown command: "${commandPath}". Use 'help' for a list.\n`, { format: 'error' });
+					}
+				} else {
+					// No specific command requested, show general help
+					this.showHelp();
+				}
+			},
 		});
 
 		// Exit command
@@ -237,7 +257,7 @@ export class Shell {
 	private showHelp(): void {
 		const commands = this.commandRegistry.getCommands();
 		const helpLines = [colors.formatHelpTitle('Available commands:')];
-		const maxLength = Math.max(0, ...Array.from(commands.keys()).map((name) => name.length)); // Added 0 for empty case
+		const maxLength = Math.max(0, ...Array.from(commands.keys()).map((name: string) => name.length)); // Explicitly type name as string
 
 		for (const [name, command] of commands) {
 			const formattedCommand = colors.formatHelpCommand(name.padEnd(maxLength + 2));
@@ -329,7 +349,7 @@ export class Shell {
 		let escapeBuffer = ''; // Buffer to store escape sequence characters
 
 		// TODO: Scrolling needs remote handling strategy
-		// if (this.layout.handleScrollKeys(data)) { continue; }
+		if (this.layout.handleScrollKeys(data)) { return; } // Use return to exit function if scroll key handled
 
 		const input = this.decoder.decode(data);
 		for (let i = 0; i < input.length; i++) {
@@ -413,6 +433,7 @@ export class Shell {
 					this.handleTabCompletion();
 				} else if (char >= ' ') { // Printable characters
 					this.insertAtCursor(char);
+					this.updateInputWithCursor(); // Explicitly update display after insert
 				} else {
 					// Ignore other control characters for now
 					// console.log("Ignored char code:", charCode);
@@ -463,9 +484,10 @@ export class Shell {
 	 * Execute a command (now primarily for internal/server use).
 	 * Command actions should use context.write for output.
 	 * @param commandInput - The command string to execute
+	 * @returns Promise resolving to a CommandResult object.
 	 */
-	public async executeCommand(commandInput: string): Promise<void> {
-		if (!commandInput) return;
+	public async executeCommand(commandInput: string): Promise<CommandResult> { // Changed return type
+		if (!commandInput) return { success: false, error: new Error('Empty command input') }; // Return CommandResult
 
 		const context: CommandContext = {
 			shell: this,
@@ -480,35 +502,54 @@ export class Shell {
 		});
 
 		try {
-			const result = await this.commandRegistry.executeCommand(commandToExecute, context);
+			// Directly call the registry's executeCommand
+			const result: CommandResult = await this.commandRegistry.executeCommand(commandToExecute, context);
 
+			// Emit events based on the result from the registry
 			if (result.success) {
+				// Don't emit COMMAND_AFTER if help was just displayed, only on actual execution
+				// We need more info from CommandResult or handle this differently if needed.
+				// For now, assume any success means emit.
 				this.emitEvent({
 					type: ShellEventType.COMMAND_AFTER,
 					timestamp: Date.now(),
 					payload: { command: commandToExecute, success: true },
 				});
-			} else { // Command not found by registry
-				const suggestions = this.commandRegistry.getSuggestions(commandToExecute);
-				const errorMessage = suggestions.length > 0
-					? `Unknown command "${commandInput}". Did you mean "${suggestions[0]}"?`
-					: `Unknown command "${commandInput}"`;
-				this.write(errorMessage, { format: 'error' }); // Use context.write
-				this.emitEvent({
-					type: ShellEventType.COMMAND_ERROR,
-					timestamp: Date.now(),
-					payload: { command: commandToExecute, error: result.error || 'Command not found' }, // Provide error
-				});
+			} else {
+				// Error might have already been written by the registry (parser error, help shown)
+				// But we still need to emit the error event if an error object exists
+				if (result.error) {
+					this.emitEvent({
+						type: ShellEventType.COMMAND_ERROR,
+						timestamp: Date.now(),
+						payload: { command: commandToExecute, error: result.error },
+					});
+				}
+				// If it failed but wasn't an error (e.g. help shown), no error event needed here.
+
+				// Handle "Unknown command" specifically if the registry indicated that
+				// (Assuming registry returns a specific error or message for this)
+				if (result.error?.message.startsWith('Unknown command')) {
+					const suggestions = await this.commandRegistry.getSuggestions(commandToExecute, context);
+					const errorMsgBase = `Unknown command "${commandInput}"`;
+					const suggestionMsg = suggestions.length > 0 ? `. Did you mean "${suggestions[0]}"?` : '';
+					this.write(errorMsgBase + suggestionMsg, { format: 'error' });
+					// Error event was already emitted above if result.error existed
+				}
 			}
-		} catch (error) { // Error during command action execution
+			return result; // Return the result from the registry
+
+		} catch (error) { // Catch errors ONLY from the command's ACTION execution itself
 			const errorMessage = (error instanceof Error ? error.message : String(error));
 			this.write(`Error executing command: ${errorMessage}`, { format: 'error' }); // Use context.write
 			console.error(`[Shell][executeCommand] Error:`, error);
 			this.emitEvent({
 				type: ShellEventType.COMMAND_ERROR,
 				timestamp: Date.now(),
-				payload: { command: commandToExecute, error },
+				payload: { command: commandToExecute, error: error instanceof Error ? error : new Error(String(error)) },
 			});
+			// Return a failure result if action throws
+			return { success: false, error: error instanceof Error ? error : new Error(String(error)) };
 		}
 	}
 
@@ -546,30 +587,44 @@ export class Shell {
 	/**
 	 * Handle tab completion (basic version)
 	 */
-	private handleTabCompletion(): void {
-		const input = this.buffer.slice(0, this.cursorPosition); // Complete based on text before cursor
-		const currentWordMatch = input.match(/([^\s]+)$/); // Get the last word
-		const currentWord = currentWordMatch ? currentWordMatch[1] : '';
+	private async handleTabCompletion(): Promise<void> { // Make async
+		const input = this.buffer.slice(0, this.cursorPosition); // Use input up to cursor for context
 
-		if (!currentWord) return;
+		// Create context needed for getSuggestions
+		const context: CommandContext = {
+			shell: this,
+			write: (content: string, options?: OutputOptions) => this.write(content, options),
+		};
 
-		const commandInput = currentWord.startsWith('/') ? currentWord.substring(1) : currentWord;
-		const suggestions = this.commandRegistry.getSuggestions(commandInput);
+		const suggestions = await this.commandRegistry.getSuggestions(input, context); // Await and pass context
+		
+		// We still need the last word to determine what part of the suggestion to insert
+		const parts = input.split(/\s+/);
+		const lastPart = parts[parts.length - 1] || '';
 
 		if (suggestions.length === 1) {
 			// Autocomplete
-			const suggestion = suggestions[0];
-			const completion = suggestion.substring(commandInput.length);
-			this.insertAtCursor(completion);
-			// Check if it's a full command and add a space if needed (optional)
-			if (this.commandRegistry.getCommand(suggestion) && this.cursorPosition === this.buffer.length) {
-				this.insertAtCursor(' ');
+			const suggestion = suggestions[0]; // e.g., "echo normal"
+			// Find the part of the suggestion that needs to be inserted
+			// For "echo nor", suggestion is "echo normal", lastPart is "nor"
+			// We need to find what comes after "echo " in the suggestion, relative to lastPart
+			const completion = suggestion.substring(input.length); // Insert the rest of the suggestion
+			this.insertAtCursor(completion); // Update buffer and cursor position internally
+			// Check if it's a full command/subcommand (ends without needing more input)
+			// and add a space if the cursor is now at the end.
+			const cmd = this.commandRegistry.getCommand(suggestion) || this.commandRegistry.getSubcommand(suggestion);
+			if (cmd && !cmd.subcommands && this.cursorPosition === this.buffer.length) {
+				this.insertAtCursor(' '); // Insert space, updates cursor internally again
 			}
+			   // Explicitly set cursor to the end of the buffer *after* all insertions
+			   this.cursorPosition = this.buffer.length;
+			this.updateInputWithCursor(); // Update display using the explicitly set cursor position
 
 		} else if (suggestions.length > 1) {
 			// Show suggestions
 			this._sendOutput('\n'); // Newline before showing suggestions
-			this.displaySuggestions(suggestions, commandInput);
+			// displaySuggestions expects string[], ensure we have awaited result
+			this.displaySuggestions(suggestions, input);
 			this.showPrompt(); // Redraw prompt and current buffer after suggestions
 		}
 	}

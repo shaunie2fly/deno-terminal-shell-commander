@@ -57,6 +57,7 @@ export enum MessageType {
 	PONG = 'pong',
 	DISCONNECT = 'disconnect',
 	INPUT = 'input',
+	RESIZE = 'resize', // Added for terminal resize events
 }
 
 /**
@@ -171,6 +172,17 @@ export interface DisconnectMessage extends BaseMessage {
 		reason: string;
 	};
 }
+/**
+ * Resize message sent from client to server to indicate terminal size change.
+ */
+export interface ResizeMessage extends BaseMessage {
+	type: MessageType.RESIZE;
+	payload: {
+		width: number;
+		height: number;
+	};
+}
+
 
 /**
  * Union type of all protocol messages (TypeScript interfaces)
@@ -185,7 +197,8 @@ export type ProtocolMessage =
 	| PingMessage
 	| PongMessage
 	| DisconnectMessage
-	| InputMessage;
+	| InputMessage
+	| ResizeMessage; // Added ResizeMessage
 
 /**
  * Connection interface for tracking active connections on the server
@@ -208,9 +221,12 @@ export interface Connection {
  */
 export enum ServerEvent {
 	CONNECT = 'connect',
-	DISCONNECT = 'disconnect',
-	COMMAND = 'command', // Emitted when a command is processed (might be less relevant now)
-	ERROR = 'error',
+	DISCONNECT = 'disconnect', // Client socket disconnected
+	AUTHENTICATED = 'authenticated', // Client successfully authenticated
+	SHELL_STARTED = 'shell_started', // Shell instance started for connection
+	SHELL_STOPPED = 'shell_stopped', // Shell instance stopped for connection
+	// COMMAND = 'command', // Deprecated/Removed - Interactions handled via Input/Output
+	ERROR = 'error', // Connection-level error occurred
 }
 
 /**
@@ -333,6 +349,16 @@ export const DisconnectMessageRT = BaseMessageRT.And(rt.Record({
 }));
 
 
+// Resize message validator
+export const ResizeMessageRT = BaseMessageRT.And(rt.Record({
+	type: rt.Literal(MessageType.RESIZE),
+	payload: rt.Record({
+		width: rt.Number,
+		height: rt.Number,
+	}),
+}));
+
+
 // Union of all specific message Runtype validators
 export const ProtocolMessageRT = rt.Union(
 	AuthRequestRT,
@@ -345,4 +371,5 @@ export const ProtocolMessageRT = rt.Union(
 	PingMessageRT,       // Use specific validator
 	PongMessageRT,       // Use specific validator
 	DisconnectMessageRT, // Use specific validator
+	ResizeMessageRT,     // Added ResizeMessageRT
 );
