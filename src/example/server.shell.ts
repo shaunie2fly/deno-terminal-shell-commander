@@ -1,6 +1,5 @@
 import { ShellServer, AuthType } from '../../mod.ts';
-import type { Command, CommandContext, ParameterDefinition } from '../commands/types.ts'; // Import needed types
-import type { ParsedArguments } from '../commands/parser.ts'; // Import ParsedArguments
+import type { Command, CommandContext, ParsedArguments } from '../../mod.ts';
 
 // --- Define Base Commands ---
 const timeCommand: Command = {
