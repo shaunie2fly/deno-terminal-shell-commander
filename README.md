@@ -36,6 +36,39 @@ import {
 *   **`Command`**: An interface used to define the structure of a command, including its `name`, `description`, `parameters` (options and arguments), `subcommands`, and the `action` function that contains the execution logic.
 *   **`CommandContext`**: An object passed to a command's `action` function. It provides methods like `context.write()` to send output back to the connected client and access to command state.
 
+## Architecture Overview
+
+The following diagram illustrates the basic interaction between the `InteractiveShellClient` and the `ShellServer`:
+
+```mermaid
+sequenceDiagram
+    participant ClientApp as Interactive Client App
+    participant IClient as InteractiveShellClient
+    participant ServerApp as ShellServer App
+    participant Server as ShellServer
+
+    ClientApp->>IClient: new InteractiveShellClient(options)
+    ClientApp->>IClient: start()
+    IClient->>Server: Establish Connection (TCP/WebSocket)
+    Server->>IClient: Connection Established
+    IClient->>ClientApp: Emit ClientEvent.CONNECT
+    IClient->>+Server: Send Auth Credentials
+    Server-->>-IClient: Authentication OK
+    Note over IClient: Enters Raw Mode, Pipes Stdio
+    ClientApp->>IClient: User types "echo normal --string=Hello"
+    IClient->>Server: Send Command: "echo normal --string=Hello"
+    Server->>Server: Parse command, find 'echo' -> 'normal'
+    Server->>Server: Execute echoNormalCommand.action()
+    Server->>IClient: Send Output: "Hello\r\n"
+    IClient->>ClientApp: Display "Hello"
+    ClientApp->>IClient: User types "exit" or Ctrl+C
+    IClient->>Server: Send Disconnect Signal
+    Server->>IClient: Acknowledge Disconnect
+    IClient->>ClientApp: Emit ClientEvent.DISCONNECT
+    Note over IClient: Cleans up Raw Mode
+    ClientApp->>ClientApp: Exit
+```
+
 ## Server Usage Example
 
 Here's how to set up a basic `ShellServer` with custom commands:
