@@ -1,5 +1,5 @@
 // src/remote/InteractiveClient.ts
-import { ShellClient, ShellClientOptions } from './client.ts';
+import { ShellClient, type ShellClientOptions } from './client.ts';
 import { ClientEvent } from './protocol.ts';
 import { EventEmitter } from 'node:events';
 
@@ -12,17 +12,56 @@ export interface InteractiveShellClientOptions extends ShellClientOptions {
 }
 
 /**
- * A wrapper around ShellClient to simplify setting up an interactive
- * terminal session by handling raw mode and stdio piping automatically.
+ * A wrapper around {@link ShellClient} designed to simplify the setup of an
+ * interactive terminal session. It automatically handles terminal raw mode
+ * switching and pipes standard input/output (stdin/stdout) between the local
+ * terminal and the remote shell process.
+ *
+ * This class emits the core {@link ClientEvent}s (`CONNECT`, `DISCONNECT`, `ERROR`)
+ * forwarded from the underlying `ShellClient`.
+ *
+ * @example
+ * ```typescript
+ * import { InteractiveShellClient } from "./InteractiveClient.ts";
+ *
+ * const client = new InteractiveShellClient({ url: "ws://localhost:8080" });
+ *
+ * client.on(ClientEvent.CONNECT, () => console.log("Connected!"));
+ * client.on(ClientEvent.DISCONNECT, ({ code, reason }) => {
+ *   console.log(`Disconnected: ${reason} (Code: ${code})`);
+ *   Deno.exit(code === 1000 ? 0 : 1); // Exit cleanly on normal disconnect
+ * });
+ * client.on(ClientEvent.ERROR, ({ message, error }) => console.error(`Error: ${message}`, error));
+ *
+ * try {
+ *   await client.start();
+ *   console.log("Interactive session started. Press Ctrl+C to exit.");
+ * } catch (error) {
+ *   console.error("Failed to start interactive session:", error);
+ *   Deno.exit(1);
+ * }
+ * ```
+ *
+ * @extends EventEmitter
  */
 export class InteractiveShellClient extends EventEmitter {
+	/** @internal The underlying ShellClient instance. */
 	private shellClient: ShellClient;
+	/** @internal Configuration options for the client. */
 	private options: InteractiveShellClientOptions;
+	/** @internal Promise tracking the stdin reading loop. */
 	private stdinReadLoopPromise: Promise<void> | undefined;
+	/** @internal Promise tracking the stdout writing loop. */
 	private stdoutWriteLoopPromise: Promise<void> | undefined;
-	private isRawMode = false; // Track raw mode state
-    private pipingStarted = false; // Flag to prevent starting pipes multiple times on reconnect
+	/** @internal Tracks the current state of terminal raw mode. */
+	private isRawMode = false;
+	/** @internal Flag to prevent starting stdio pipes multiple times on reconnect. */
+	   private pipingStarted = false;
 
+	/**
+	 * Creates an instance of InteractiveShellClient.
+	 * @param options - Configuration options for the interactive client, extending {@link ShellClientOptions}.
+	 */
 	constructor(options: InteractiveShellClientOptions) {
 		super();
 		this.options = options;
@@ -31,7 +70,12 @@ export class InteractiveShellClient extends EventEmitter {
 		this.setupCleanupListeners();
 	}
 
-	/** Sets up forwarding for core ShellClient events */
+	/**
+	    * @internal
+	    * Sets up forwarding for essential events from the underlying {@link ShellClient}.
+	    * This includes `CONNECT`, `DISCONNECT`, and `ERROR`.
+	    * `OUTPUT` is typically handled via direct stdout piping.
+	    */
 	private setupEventForwarding(): void {
 		this.shellClient.on(ClientEvent.CONNECT, (payload) => this.emit(ClientEvent.CONNECT, payload));
 		this.shellClient.on(ClientEvent.DISCONNECT, (payload) => {
@@ -43,7 +87,12 @@ export class InteractiveShellClient extends EventEmitter {
 		// this.shellClient.on(ClientEvent.OUTPUT, (payload) => this.emit(ClientEvent.OUTPUT, payload));
 	}
 
-	/** Sets up global listeners for process exit/signals */
+	/**
+	    * @internal
+	    * Sets up global listeners to ensure proper cleanup, specifically disabling
+	    * raw mode on process exit (`unload`) and handling interrupt signals (`SIGINT`)
+	    * for graceful disconnection.
+	    */
 	private setupCleanupListeners(): void {
 		// Ensure raw mode is disabled on unexpected exit
 		globalThis.addEventListener("unload", () => {
@@ -67,7 +116,12 @@ export class InteractiveShellClient extends EventEmitter {
         }
 	}
 
-	/** Enables terminal raw mode */
+	/**
+	    * @internal
+	    * Enables terminal raw mode for `Deno.stdin`.
+	    * Raw mode allows capturing individual keystrokes (like Ctrl+C) instead of line-buffered input.
+	    * @returns `true` if raw mode was enabled successfully or was already enabled, `false` otherwise.
+	    */
 	private enableRawMode(): boolean {
 		if (this.isRawMode) return true;
 		try {
@@ -82,7 +136,11 @@ export class InteractiveShellClient extends EventEmitter {
 		}
 	}
 
-	/** Disables terminal raw mode */
+	/**
+	    * @internal
+	    * Disables terminal raw mode for `Deno.stdin` if it's currently enabled and stdin is a TTY.
+	    * This restores normal terminal input behavior.
+	    */
 	private disableRawMode(): void {
 		if (!this.isRawMode) return;
 		try {
@@ -101,7 +159,13 @@ export class InteractiveShellClient extends EventEmitter {
 		}
 	}
 
-	/** Starts piping Deno.stdin to the ShellClient input stream */
+	/**
+	    * @internal
+	    * Starts an asynchronous loop to read data from `Deno.stdin` and write it
+	    * to the {@link ShellClient}'s input stream.
+	    * This loop continues as long as the client {@link isConnected}.
+	    * It handles stdin closure and read/write errors.
+	    */
 	private startStdinPiping(): void {
         if (this.pipingStarted) return; // Prevent multiple starts
 		const inputStream = this.shellClient.getInputStream();
@@ -138,7 +202,13 @@ export class InteractiveShellClient extends EventEmitter {
         });
 	}
 
-	/** Starts piping the ShellClient output stream to Deno.stdout */
+	/**
+	    * @internal
+	    * Starts an asynchronous loop to read data from the {@link ShellClient}'s output
+	    * stream and write it to `Deno.stdout`.
+	    * This loop continues as long as the client {@link isConnected}.
+	    * It handles stream closure and read/write errors.
+	    */
 	private startStdoutPiping(): void {
         if (this.pipingStarted) return; // Prevent multiple starts
 		const outputStream = this.shellClient.getOutputStream();
@@ -169,7 +239,16 @@ export class InteractiveShellClient extends EventEmitter {
 	}
 
 	/**
-	 * Connects to the server and starts the interactive session.
+	 * Initiates the connection to the remote shell server and starts the
+	 * interactive session.
+	 *
+	 * On successful connection (`CONNECT` event), it enables terminal raw mode
+	 * and starts piping stdin and stdout.
+	 * On disconnection (`DISCONNECT` event), it disables raw mode.
+	 *
+	 * @returns A promise that resolves when the connection attempt is initiated.
+	 *          It may reject if the initial connection fails immediately.
+	 * @throws Re-throws errors encountered during the initial connection attempt.
 	 */
 	public async start(): Promise<void> {
 		// Use 'on' instead of 'once'
@@ -205,7 +284,12 @@ export class InteractiveShellClient extends EventEmitter {
 	}
 
 	/**
-	 * Gracefully stops the interactive session and disconnects the client.
+	 * Gracefully stops the interactive session.
+	 * This involves disabling raw mode, closing the input stream to the server,
+	 * disconnecting the underlying {@link ShellClient}, and waiting briefly for
+	 * the stdin/stdout piping loops to finish.
+	 *
+	 * @returns A promise that resolves when the stop process is complete.
 	 */
 	public async stop(): Promise<void> {
         // console.log('[InteractiveClient] Stopping...');
@@ -226,12 +310,18 @@ export class InteractiveShellClient extends EventEmitter {
         // console.log('[InteractiveClient] Stopped.');
 	}
 
-    /** Accessor for the internal ShellClient if needed */
+    /**
+     * Provides access to the underlying {@link ShellClient} instance for advanced use cases.
+     * @returns The internal `ShellClient` instance.
+     */
     public get internalClient(): ShellClient {
         return this.shellClient;
     }
 
-    /** Check connection status using the new getter */
+    /**
+     * Checks if the underlying {@link ShellClient} is currently connected to the server.
+     * @returns `true` if connected, `false` otherwise.
+     */
     public get isConnected(): boolean {
         // Use the getter from ShellClient
         return this.shellClient.isConnected;

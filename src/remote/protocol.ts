@@ -205,6 +205,12 @@ export type ProtocolMessage =
  */
 import type { Shell } from '../shell/Shell.ts'; // Import Shell type
 
+/**
+ * Represents an active connection on the server.
+ * Tracks connection state, associated user, activity, and provides methods
+ * for sending messages and disconnecting. It may also hold a reference
+ * to the underlying shell process instance.
+ */
 export interface Connection {
 	id: string;
 	username?: string;
