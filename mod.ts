@@ -20,6 +20,7 @@ export { CommandRegistry } from "./src/commands/Registry.ts";
 // Remote shell exports 
 export { ShellServer } from "./src/remote/server.ts";
 export { ShellClient } from "./src/remote/client.ts";
+export { InteractiveShellClient } from './src/remote/InteractiveClient.ts';
 export type { ShellServerOptions } from "./src/remote/server.ts";
 export type { ShellClientOptions } from "./src/remote/client.ts";
 export { 

@@ -1,7 +1,4 @@
-// ../../../../pnprecipies/pnp/src/shell/client.shell.ts
-// Import the new wrapper class instead of the base ShellClient
-import { InteractiveShellClient } from '../remote/InteractiveClient.ts';
-import { ClientEvent } from '../remote/protocol.ts';
+import { ClientEvent, InteractiveShellClient } from '../../mod.ts';
 
 console.log('Starting Interactive Remote Shell Client...');
 

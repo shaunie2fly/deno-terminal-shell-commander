@@ -805,7 +805,7 @@ export class ShellClient {
 		}
 
 		// Reject all pending commands/requests
-		for (const [id, { reject }] of this.pendingCommands) {
+		for (const [_id, { reject }] of this.pendingCommands) {
 			reject(new Error('Disconnected from server'));
 		}
 		this.pendingCommands.clear();
