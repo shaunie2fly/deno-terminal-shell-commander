@@ -1,6 +1,6 @@
 {
   "name": "@termshell/denoremoteshell",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "MIT",
   "exports": "./mod.ts",
   "description": "A modular terminal shell implementation for Deno provides an extensible command-line interface (CLI) designed for both local and remote usage. It provides a framework for registering and executing commands, managing services, and handling user interactions.",

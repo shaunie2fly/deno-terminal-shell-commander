@@ -12,6 +12,7 @@ const timeCommand: Command = {
     },
 };
 // --- Echo Command with Subcommands ---
+
 const echoNormalCommand: Command = {            
     name: 'normal',
     description: 'Echoes the provided text.',

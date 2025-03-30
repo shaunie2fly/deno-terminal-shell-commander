@@ -137,7 +137,7 @@ export class Shell {
 
 		// Initial setup for the remote client
 		this.clear(); // Send clear screen code
-		this.displayWelcome(); // Send welcome message and initial prompt
+		await this.displayWelcome(); // Send welcome message and initial prompt (now async)
 	}
 
 	/**
@@ -236,19 +236,30 @@ export class Shell {
 	}
 
 	/**
-	 * Display welcome message
+	 * Display welcome message, including the ANSI logo.
 	 */
-	private displayWelcome(): void {
-		const welcomeMessage = [
+	private async displayWelcome(): Promise<void> { // Make async
+		let logoContent = '';
+		try {
+			// Assuming deno_logo.ansi is in the CWD where the server runs
+			logoContent = await Deno.readTextFile('deno_logo.ansi');
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			logoContent = colors.formatError('Error', `Could not load logo: ${errorMessage}`);
+			console.error("[Shell] Failed to read deno_logo.ansi:", error);
+		}
+
+		const welcomeLines = [
+			logoContent, // Prepend logo
 			colors.header(`Welcome to ${this.name}`),
 			colors.border(80), // Assuming 80 cols, might need adjustment based on resize info
 			colors.formatInfo(`Use 'help' for available commands.`),
 			colors.formatInfo(`Use 'exit' to quit.`),
 			// Add other relevant info
 			colors.border(80),
-		].join('\n') + '\n';
+		];
 
-		this._sendOutput(welcomeMessage);
+		this._sendOutput(welcomeLines.join('\n') + '\n\n'); // Add extra newline after logo/message
 		this.showPrompt();
 	}
 
@@ -258,18 +269,28 @@ export class Shell {
 	private showHelp(): void {
 		const commands = this.commandRegistry.getCommands();
 		const helpLines = [colors.formatHelpTitle('Available commands:')];
-		const maxLength = Math.max(0, ...Array.from(commands.keys()).map((name: string) => name.length)); // Explicitly type name as string
+
+		// Calculate max lengths considering subcommands and indent
+		const maxTopLevelLength = Math.max(0, ...Array.from(commands.keys()).map(name => name.length));
+		const maxSubcommandLength = Math.max(0, ...Array.from(commands.values())
+			.flatMap(cmd => cmd.subcommands ? Array.from(cmd.subcommands.keys()) : [])
+			.map(subName => subName.length));
+
+		const subcommandIndent = 4; // Standard indent for subcommands
+		const overallMaxWidth = Math.max(maxTopLevelLength, subcommandIndent + maxSubcommandLength);
+		const paddingWidth = overallMaxWidth + 2; // Add 2 spaces for separation
 
 		for (const [name, command] of commands) {
-			const formattedCommand = colors.formatHelpCommand(name.padEnd(maxLength + 2));
-			const formattedDescription = colors.formatHelpDescription(command.description || ''); // Added default empty string
+			const formattedCommand = colors.formatHelpCommand(name.padEnd(paddingWidth));
+			const formattedDescription = colors.formatHelpDescription(command.description || '');
 			helpLines.push(`  ${formattedCommand}${formattedDescription}`);
 
 			if (command.subcommands && command.subcommands.size > 0) {
 				for (const [subName, subCmd] of command.subcommands) {
-					const formattedSubCommand = colors.formatHelpCommand(`  ${subName}`.padEnd(maxLength + 2)); // Adjust padding maybe
+					// Pad only the subcommand name, accounting for the fixed indent
+					const formattedSubCommand = colors.formatHelpCommand(subName.padEnd(paddingWidth - subcommandIndent));
 					const formattedSubDescription = colors.formatHelpDescription(subCmd.description || '');
-					helpLines.push(`    ${formattedSubCommand}${formattedSubDescription}`);
+					helpLines.push(`${' '.repeat(subcommandIndent + 2)}${formattedSubCommand}${formattedSubDescription}`); // +2 for initial indent
 				}
 			}
 		}
