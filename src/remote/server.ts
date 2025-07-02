@@ -32,6 +32,8 @@ export interface ShellServerOptions {
 	maxConnections?: number;
    /** Array of base commands to register on each new shell instance */
 baseCommands?: Command[];
+/** Enable debug logging */
+debug?: boolean;
 }
 
 /**
@@ -82,7 +84,9 @@ export class ShellServer {
 	 */
 	constructor(options: ShellServerOptions) {
 		// Validate required options (port or socketPath needed later in start)
-		console.log('[ShellServer] Initializing with options:', options);
+		if (options.debug) {
+			console.log('[ShellServer] Initializing with options:', options);
+		}
 		// Removed shell instance validation/assignment
 
 		// Set defaults for optional parameters
@@ -96,7 +100,9 @@ export class ShellServer {
 		baseCommands: options.baseCommands || [], // Store base commands
 		};
 
-		console.log('[ShellServer] Final configuration:', this.options);
+		if (this.options.debug) {
+			console.log('[ShellServer] Final configuration:', this.options);
+		}
 	}
 
 	/**

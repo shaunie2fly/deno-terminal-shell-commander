@@ -84,7 +84,7 @@ const baseCommands = [timeCommand, echoCommand]; // Added echoCommand
 // --------------------------
 // Example usage
 const server = new ShellServer({
-
+    debug: true,
     defaultPrompt: 'example>',
     maxConnections: 5,
 	port: 8080,
